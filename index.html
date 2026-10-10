@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>FVCKTHERULES — ENTER THE STORE</title>
+<meta name="description" content="Toko virtual FVCKTHERULES. Soccer culture. Street attitude. Born to Disobey.">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="icon" href="assets/favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Toko FVCKTHERULES"></canvas>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="hud-top">
+    <button class="hb" id="bMenu" aria-label="Menu">☰</button>
+    <button class="hb" id="bCatalog">KATALOG</button>
+    <button class="hb" id="bKasir">KASIR ▸</button>
+    <span class="grow"></span>
+    <button class="hb" id="bMute" aria-label="Suara">🔊</button>
+    <button class="hb" id="bCart">TAS <b id="cartN">0</b></button>
+  </div>
+  <div id="prompt" hidden></div>
+  <div id="toast" hidden></div>
+  <div id="touch">
+    <div id="joy"><div id="knob"></div></div>
+    <button id="bAct">E</button>
+  </div>
+</div>
+
+<!-- INTRO -->
+<section id="intro" class="screen">
+  <div class="intro-in">
+    <div class="tag">SOCCER CULTURE · STREET ATTITUDE</div>
+    <h1 class="mark">FVCK<span>THE</span>RULES</h1>
+    <div class="enter">ENTER THE STORE</div>
+    <div class="btns">
+      <button class="btn pri" id="bPlay">PLAY</button>
+      <button class="btn" id="bQuick">KATALOG CEPAT</button>
+      <button class="btn" id="bHow">HOW TO PLAY</button>
+      <a class="btn" href="https://fucktherules.my.id/">BACK TO MAIN STORE</a>
+    </div>
+    <div class="load" id="loadState"><i></i><span>Memuat katalog…</span></div>
+    <div class="born">BORN TO DISOBEY</div>
+  </div>
+</section>
+
+<!-- PANEL (katalog / produk / tas / checkout / kasir) -->
+<div id="panel" class="screen" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-bar">
+      <button class="x" id="pBack" hidden>‹ KEMBALI</button>
+      <span id="pTitle"></span>
+      <button class="x" id="pClose" aria-label="Tutup">✕</button>
+    </div>
+    <div id="pBody" class="sheet-body"></div>
+  </div>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>
