@@ -45,7 +45,7 @@ if (gl) {
   const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
   pr = gl.createProgram();
   gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec3 aP,aN;attribute vec2 aT;uniform mat4 uMVP;uniform mat3 uR;uniform vec2 uUV;varying vec3 vN;varying vec2 vT;varying float vD;void main(){gl_Position=uMVP*vec4(aP,1.);vN=uR*aN;vT=aT*uUV;vD=gl_Position.w;}'));
-  gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, 'precision mediump float;varying vec3 vN;varying vec2 vT;varying float vD;uniform vec4 uC;uniform sampler2D uTex;uniform float uTx,uEm;void main(){vec4 b=uC;if(uTx>.5)b=texture2D(uTex,vT)*vec4(uC.rgb,1.);float l=max(dot(normalize(vN),normalize(vec3(.35,.9,.45))),0.);vec3 c=b.rgb*(.55+.6*l)+uEm*vec3(.91,1.,.23);c=mix(c,vec3(.04),clamp((vD-13.)/16.,0.,.85));gl_FragColor=vec4(c,b.a);}'));
+  gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, 'precision mediump float;varying vec3 vN;varying vec2 vT;varying float vD;uniform vec4 uC;uniform sampler2D uTex;uniform float uTx,uEm;void main(){vec4 b=uC;if(uTx>.5)b=texture2D(uTex,vT)*vec4(uC.rgb,1.);float l=max(dot(normalize(vN),normalize(vec3(.35,.9,.45))),0.);float l2=max(dot(normalize(vN),normalize(vec3(-.4,.3,-.6))),0.);vec3 c=b.rgb*(.33+.62*l+.14*l2)+uEm*vec3(.91,1.,.23);c=mix(c,vec3(.04),clamp((vD-15.)/18.,0.,.8));gl_FragColor=vec4(c,b.a);}'));
   gl.linkProgram(pr); gl.useProgram(pr);
   [uMVP, uR, uC, uUV, uEm, uTx] = ['uMVP', 'uR', 'uC', 'uUV', 'uEm', 'uTx'].map(n => gl.getUniformLocation(pr, n));
   ['aP', 'aN', 'aT'].forEach((n, i) => { gl.bindAttribLocation(pr, i, n); }); gl.linkProgram(pr); gl.useProgram(pr);
@@ -209,14 +209,14 @@ function update(dt) {
 
 /* ---------- gambar tiap frame ---------- */
 function render() {
-  const asp = cv.width / cv.height, yaw = started ? cam.yaw : t * .15, pit = started ? cam.pitch : .45, dist = 4.6;
+  const asp = cv.width / cv.height, yaw = started ? cam.yaw : t * .15, pit = started ? cam.pitch : .45, dist = 3.1;
   const fx = Math.sin(yaw), fz = -Math.cos(yaw), tx = started ? pl.x : 0, tz = started ? pl.z : 0;
   let cx = tx - fx * dist * Math.cos(pit), cz = tz - fz * dist * Math.cos(pit); const cy = 1.4 + dist * Math.sin(pit);
   cx = Math.max(-RW + .3, Math.min(RW - .3, cx)); cz = Math.max(-5.7, Math.min(5.7, cz));
-  VP = mul(persp(.95, asp, .1, 50), lookAt([cx, cy, cz], [tx, 1.2, tz], [0, 1, 0]));
+  VP = mul(persp(1.08, asp, .1, 50), lookAt([cx, cy, cz], [tx, 1.3, tz], [0, 1, 0]));
   gl.viewport(0, 0, cv.width, cv.height); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); useM(CUBE);
   const W = [1, 1, 1, 1];
-  B(0, -.05, 0, 16, .1, 12, W, { tex: texFloor, u: 8, v: 6 });
+  B(0, -.05, 0, 16, .1, 12, W, { tex: texFloor, u: 8, v: 6 }); B(0, 3.45, 0, 16, .1, 12, [.07, .07, .07, 1]);
   B(0, 1.7, -6.05, 16.2, 3.4, .1, W, { tex: texWall, u: 8, v: 2 }); B(-8.05, 1.7, 0, .1, 3.4, 12.2, W, { tex: texWall, u: 6, v: 2 }); B(8.05, 1.7, 0, .1, 3.4, 12.2, W, { tex: texWall, u: 6, v: 2 });
   B(-4.5, 1.7, 6.05, 7, 3.4, .1, W, { tex: texWall, u: 4, v: 2 }); B(4.5, 1.7, 6.05, 7, 3.4, .1, W, { tex: texWall, u: 4, v: 2 }); B(0, 3, 6.05, 2, .8, .1, W, { tex: texWall });
   B(0, .02, 5.5, 2, .02, 1, '#e8ff3a', { em: .15 }); B(-1.05, 1.1, 6, .1, 2.2, .15, '#f2f2f2'); B(1.05, 1.1, 6, .1, 2.2, .15, '#f2f2f2');
