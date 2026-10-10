@@ -40,7 +40,7 @@ function lookAt(e, c, u) {
   const y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]], d = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -d(x, e), -d(y, e), -d(z, e), 1]);
 }
-let pr, uMVP, uR, uC, uUV, uEm, uTx, CUBE, SPH, WHITE;
+let pr, uMVP, uR, uC, uUV, uEm, uTx, CUBE, SPH, SHIRT, WHITE;
 if (gl) {
   const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
   pr = gl.createProgram();
@@ -58,6 +58,19 @@ if (gl) {
   CUBE = mk(v, ix); v = []; ix = [];
   for (let y = 0; y <= 8; y++) for (let x = 0; x <= 12; x++) { const th = y / 8 * Math.PI, ph = x / 12 * Math.PI * 2, nx = Math.sin(th) * Math.cos(ph), ny = Math.cos(th), nz = Math.sin(th) * Math.sin(ph); v.push(nx * .5, ny * .5, nz * .5, nx, ny, nz, x / 12, y / 8); if (y < 8 && x < 12) { const a = y * 13 + x; ix.push(a, a + 1, a + 13, a + 1, a + 14, a + 13); } }
   SPH = mk(v, ix);
+  /* kaos: siluet badan+lengan+kerah diekstrusi tipis (bukan balok) */
+  const SH = [[-.15, .46], [0, .40], [.15, .46], [.32, .47], [.5, .33], [.5, .17], [.33, .22], [.36, -.5], [-.36, -.5], [-.33, .22], [-.5, .17], [-.5, .33], [-.32, .47]];
+  const sn = SH.length, sd = .1; v = []; ix = [];
+  v.push(0, .0, sd / 2, 0, 0, 1, .5, .5); SH.forEach(([x, y]) => v.push(x, y, sd / 2, 0, 0, 1, x + .5, 1 - (y + .5)));
+  for (let i = 0; i < sn; i++) ix.push(0, 1 + i, 1 + (i + 1) % sn);
+  const bb = v.length / 8; v.push(0, .0, -sd / 2, 0, 0, -1, .5, .5); SH.forEach(([x, y]) => v.push(x, y, -sd / 2, 0, 0, -1, x + .5, 1 - (y + .5)));
+  for (let i = 0; i < sn; i++) ix.push(bb, bb + 1 + (i + 1) % sn, bb + 1 + i);
+  for (let i = 0; i < sn; i++) {
+    const [x1, y1] = SH[i], [x2, y2] = SH[(i + 1) % sn], ex = y2 - y1, ey = -(x2 - x1), el = Math.hypot(ex, ey) || 1, nx = ex / el, ny = ey / el, base = v.length / 8;
+    v.push(x1, y1, sd / 2, nx, ny, 0, 0, 0); v.push(x2, y2, sd / 2, nx, ny, 0, 1, 0); v.push(x2, y2, -sd / 2, nx, ny, 0, 1, 1); v.push(x1, y1, -sd / 2, nx, ny, 0, 0, 1);
+    ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  SHIRT = mk(v, ix);
 }
 const useM = m => { gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24); };
 const mkTex = (src, rep) => { const x = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, x); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); const w = rep ? gl.REPEAT : gl.CLAMP_TO_EDGE; gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, w); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, w); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -211,13 +224,15 @@ function render() {
   B(5.0, 1.8, -5.95, 1.8, 1.2, .08, W, { tex: texBoard });
   for (let i = 0; i < 16; i++) B(-7.5 + i, 3.3, -5.9, .3, .25, .02, i % 2 ? '#f2f2f2' : '#e8ff3a');
   rails.forEach(r => { B(r.cx, 2.0, r.cz, r.sx, .04, r.sz, '#9a9a9a'); r.ends.forEach(([x, z]) => B(x, 1.0, z, .05, 2.0, .05, '#555')); });
-  // hanger + kaos (foto produk jadi tekstur)
+  // hanger + kaos (siluet badan+lengan+kerah, foto produk jadi tekstur)
   hangers.forEach(h => {
     const e = h.p.thumb && TX[h.p.thumb], tex = e && e.t, on = hot === h, sw = Math.sin(t * 1.3 + h.ph) * .03 + (on ? Math.sin(t * 6) * .07 : 0), sc = on ? 1.1 : 1;
     const rM = mul(mT(h.x, 0, h.z), mRy(h.ry)), R0 = mRy(h.ry);
     const sub = (M, R, s, c, o) => draw(CUBE, mul(rM, mul(M, mS(...s))), mul(R0, R), c, o);
     sub(mT(0, 1.9, 0), ID, [.03, .14, .03], hex('#bbbbbb')); sub(mul(mT(0, 1.82, 0), mRz(sw)), mRz(sw), [.5, .03, .03], hex('#bbbbbb'));
-    sub(mul(mT(0, 1.8, 0), mul(mRz(sw), mT(0, -.38 * sc, 0))), mRz(sw), [.5 * sc, .72 * sc, .05], tex ? W : hex(['#555555', '#8a8a8a', '#d9d9d9'][h.p.name.length % 3]), { tex, em: on ? .18 : 0 });
+    useM(SHIRT);
+    draw(SHIRT, mul(rM, mul(mT(0, 1.42, 0), mul(mRz(sw), mS(.78 * sc, .78 * sc, 1)))), mul(R0, mRz(sw)), tex ? W : hex(['#555555', '#8a8a8a', '#d9d9d9'][h.p.name.length % 3]), { tex, em: on ? .18 : 0 });
+    useM(CUBE);
   });
   // meja tengah (semua produk) + lipatan kaos
   B(0, .8, 0, 2.6, .12, 1.3, '#4a4a4a'); [[-1.1, -.5], [1.1, -.5], [-1.1, .5], [1.1, .5]].forEach(([x, z]) => B(x, .37, z, .1, .74, .1, '#222'));
