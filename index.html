@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>FVCKTHERULES — ENTER THE STORE</title>
 <meta name="description" content="Toko virtual FVCKTHERULES. Soccer culture. Street attitude. Born to Disobey.">
-<meta name="theme-color" content="#0a0a0a">
-<link rel="icon" href="assets/favicon.png">
+<meta name="theme-color" content="#c3effd">
+<link rel="icon" href="assets/favicon.png"><link rel="apple-touch-icon" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -34,17 +36,17 @@
 <!-- INTRO -->
 <section id="intro" class="screen">
   <div class="intro-in">
-    <div class="tag">SOCCER CULTURE · STREET ATTITUDE</div>
-    <h1 class="mark">FVCK<span>THE</span>RULES</h1>
-    <div class="enter">ENTER THE STORE</div>
+    <img class="brand-logo" src="assets/logo.png" alt="Logo FvcktheRules" width="132" height="190">
+    <h1 class="wm">fvcktherules<i>store</i></h1>
+    <div class="tag">soccer culture · street attitude</div>
     <div class="btns">
       <button class="btn pri" id="bPlay">PLAY</button>
       <button class="btn" id="bQuick">KATALOG CEPAT</button>
       <button class="btn" id="bHow">HOW TO PLAY</button>
-      <a class="btn" href="https://fucktherules.my.id/">BACK TO MAIN STORE</a>
+      <a class="btn link" href="https://fucktherules.my.id/">kembali ke toko utama</a>
     </div>
     <div class="load" id="loadState"><i></i><span>Memuat katalog…</span></div>
-    <div class="born">BORN TO DISOBEY</div>
+    <div class="born">born to disobey</div>
   </div>
 </section>
 
@@ -53,13 +55,13 @@
   <div class="sheet" role="dialog" aria-modal="true">
     <div class="sheet-bar">
       <button class="x" id="pBack" hidden>‹ KEMBALI</button>
-      <span id="pTitle"></span>
+      <img class="sb-logo" src="assets/logo.png" alt=""><span id="pTitle"></span>
       <button class="x" id="pClose" aria-label="Tutup">✕</button>
     </div>
     <div id="pBody" class="sheet-body"></div>
   </div>
 </div>
 
-<script type="module" src="game.js?v=20261010d"></script>
+<script type="module" src="game.js?v=20261010e"></script>
 </body>
 </html>

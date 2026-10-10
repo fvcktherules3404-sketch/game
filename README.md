@@ -46,3 +46,10 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Verifikasi pembayaran otomatis: tidak ada (QRIS statis, tanpa gateway). Status selalu *menunggu verifikasi admin*. Struktur siap: ganti `openPay()`/`submit()` di `shop.js` dengan gateway kelak.
 - Musik ambient (hanya efek suara WebAudio buatan, tombol mute). Rak khusus "City Series": belum ada penanda series di data produk — pakai filter katalog.
 - Semua model dibuat prosedural dari kode (kaos = badan+lengan+kerah berkerut, bukan kotak; tekstur bata/beton digambar via canvas). Warna kaos mengikuti field `warna` produk; foto produk tampil di panel/katalog, bukan ditempel ke kaos. Three.js dimuat dari CDN (butuh internet); jika gagal, game jatuh ke KATALOG CEPAT. Untuk realisme lebih tinggi: ganti dengan model .glb gratis (CC0) + GLTFLoader.
+
+
+## Pembaruan terbaru
+- Tema popup/katalog/tas/checkout/kasir disamakan dengan web utama (krem, tombol pill, kartu bulat, judul Gaegu, font Inter). Logo burung kuning memakai logo web utama (assets/logo.png; favicon juga diperkecil 358KB -> 15KB).
+- Kaos & hanger diperbesar 1.3x (jarak antar hanger 0.8 m; muat 16 produk per sisi rak + 20 di rak belakang; sisanya tetap ada di KATALOG). Foto produk tampil sebagai patch bulat di dada kaos (dimuat malas hanya untuk hanger yang dekat).
+- Cermin bisa dipindah: dekati cermin, tekan E, pilih "PINDAH CERMIN" (3 posisi dinding, tersimpan di localStorage).
+- Optimasi: satu draw call per hanger (atlas tekstur), geometri statis digabung per material, material Lambert untuk permukaan kasar, bayangan diperbarui tiap 2 frame, resolusi adaptif (turun dulu sebelum kualitas), batas ~60fps di layar 120Hz, lampu titik berkurang di kualitas rendah, tekstur dinding/lantai resolusi lebih tinggi + AO sudut dinding.
