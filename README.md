@@ -6,7 +6,7 @@ Game memuat `https://fucktherules.my.id/firebase.js` (modul yang sama dengan tok
 
 ## Struktur
 ```
-CNAME  .nojekyll  index.html  style.css  game.js (engine/kontrol)  shop.js (katalog, tas, checkout, kasir)
+CNAME  .nojekyll  index.html  style.css  game.js (3D: renderer WebGL mini tanpa library, kamera third-person, hanger, kasir)  shop.js (katalog, tas, checkout, kasir)
 assets/qris.jpg (cadangan; utama memakai /qris.jpg dari toko utama)  assets/favicon.png
 ```
 Tidak ada file toko utama yang diubah. CNAME toko utama tetap `fucktherules.my.id`.
@@ -37,7 +37,7 @@ Tidak ada file toko utama yang diubah. CNAME toko utama tetap `fucktherules.my.i
 
 ## Status pengujian
 Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock**):
-- Intro → PLAY, HUD tampil; jalan dengan keyboard, tabrakan rak/loket bekerja, prompt "…TO BROWSE" muncul, E membuka katalog, ESC menutup.
+- Versi 3D: render WebGL (SwiftShader) tanpa error; kamera third-person, tekstur dinding/lantai/papan, hanger dengan kaos (tekstur foto produk, memuat dari Cloudinary w_256), prompt per hanger, E membuka panel produk, ESC menutup. Posisi pemain di-teleport lewat hook `?debug` untuk tes (hook tidak aktif tanpa parameter itu).
 - Katalog dari data `produk`, pilih warna/ukuran (hanya ukuran di `stok`), qty, ADD TO CART, badge HUD, tas persisten (localStorage, divalidasi ulang ke katalog).
 - Checkout: validasi form, cascade wilayah, ongkir, voucher nominal, total (378.000+20.000−10.000=388.000), tolak submit tanpa bukti, payload order (produk dipecah per pcs, `isPO`, `kodePrefix`, `dpEligible`), struk dengan ID dari `saveOrder`, tas dikosongkan.
 **BELUM diuji (perlu kamu uji di produksi):** Firebase/Firestore asli; order muncul di admin.html; ID dipakai di Pantau Pesanan; voucher persen/free_ongkir; import lintas-origin `firebase.js`; Biteship/J&T asli; QRIS asli tampil; Google/email login; Android fisik; jumlah order saat klik ganda (tombol dikunci + flag `busy`, tapi belum dihitung di database asli); perubahan produk live di admin.
@@ -45,4 +45,4 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 ## Belum diwujudkan
 - Verifikasi pembayaran otomatis: tidak ada (QRIS statis, tanpa gateway). Status selalu *menunggu verifikasi admin*. Struktur siap: ganti `openPay()`/`submit()` di `shop.js` dengan gateway kelak.
 - Musik ambient (hanya efek suara WebAudio buatan, tombol mute). Rak khusus "City Series": belum ada penanda series di data produk — pakai filter katalog.
-- Pixel art dibuat prosedural di canvas (tanpa aset gambar) agar ringan; bisa diganti sprite sheet nanti.
+- Model 3D hanya kotak low-poly (tanpa file model). Foto produk pada kaos butuh CORS Cloudinary; jika gagal, kaos tampil abu-abu polos. Bisa diganti model glTF + three.js nanti.
