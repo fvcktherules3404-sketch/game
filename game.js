@@ -152,6 +152,11 @@ function kick() { beep('kick'); const dx = ball.x - pl.x, dz = ball.z - pl.z, l 
 
 /* ---------- pemain, kamera, input ---------- */
 const pl = { x: -2.6, z: 1.2, ry: Math.PI, walk: 0, moving: false }, cam = { yaw: 0, pitch: .38 };
+let fp = localStorage.getItem('fvckgame.fp') === '1';
+const setFP = v => { fp = v; localStorage.setItem('fvckgame.fp', v ? '1' : '0'); $('#bView').textContent = v ? 'FPV' : 'TPV'; };
+setFP(fp);
+$('#bView').addEventListener('click', () => { setFP(!fp); beep('step'); });
+addEventListener('keydown', e => { if (!paused && (e.key === 'v' || e.key === 'V')) setFP(!fp); });
 addEventListener('keydown', e => {
   if (e.key === 'Escape') { if ($('#say')) closeSay(); else if (panelOpen()) closePanel(); return; }
   if (paused) return; const k = e.key.toLowerCase();
@@ -210,10 +215,17 @@ function update(dt) {
 /* ---------- gambar tiap frame ---------- */
 function render() {
   const asp = cv.width / cv.height, yaw = started ? cam.yaw : t * .15, pit = started ? cam.pitch : .45, dist = 3.1;
-  const fx = Math.sin(yaw), fz = -Math.cos(yaw), tx = started ? pl.x : 0, tz = started ? pl.z : 0;
-  let cx = tx - fx * dist * Math.cos(pit), cz = tz - fz * dist * Math.cos(pit); const cy = 1.4 + dist * Math.sin(pit);
-  cx = Math.max(-RW + .3, Math.min(RW - .3, cx)); cz = Math.max(-5.7, Math.min(5.7, cz));
-  VP = mul(persp(1.08, asp, .1, 50), lookAt([cx, cy, cz], [tx, 1.3, tz], [0, 1, 0]));
+  const fx = Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = Math.sin(yaw), tx = started ? pl.x : 0, tz = started ? pl.z : 0;
+  const bob = pl.moving ? Math.sin(pl.walk * 2) * .035 : Math.sin(t * 1.6) * .006;
+  if (fp && started) {
+    const lp = Math.max(-.6, Math.min(.5, pit - .38)), cp = Math.cos(lp);
+    const ex = tx, ey = 1.6 + bob, ez = tz;
+    VP = mul(persp(1.0, asp, .08, 50), lookAt([ex, ey, ez], [ex + fx * cp, ey + Math.sin(lp), ez + fz * cp], [0, 1, 0]));
+  } else {
+    let cx = tx - fx * dist * Math.cos(pit), cz = tz - fz * dist * Math.cos(pit); const cy = 1.4 + dist * Math.sin(pit);
+    cx = Math.max(-RW + .3, Math.min(RW - .3, cx)); cz = Math.max(-5.7, Math.min(5.7, cz));
+    VP = mul(persp(1.08, asp, .1, 50), lookAt([cx, cy, cz], [tx, 1.3, tz], [0, 1, 0]));
+  }
   gl.viewport(0, 0, cv.width, cv.height); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); useM(CUBE);
   const W = [1, 1, 1, 1];
   B(0, -.05, 0, 16, .1, 12, W, { tex: texFloor, u: 8, v: 6 }); B(0, 3.45, 0, 16, .1, 12, [.07, .07, .07, 1]);
@@ -243,9 +255,21 @@ function render() {
   B(7.05, .5, 3.1, .8, 1, .8, '#333'); B(7.05, 1.2, 3.1, .6, .4, .6, '#444');
   human(5, 2.75, 0, Math.sin(t * 1.5) * .05, { pants: '#1a1a1a', top: '#f2f2f2', cap: '#0a0a0a', logo: false });
   // bola + bayangan + pemain
-  gl.depthMask(false); B(pl.x, .015, pl.z, .9, .01, .9, [0, 0, 0, .4]); B(ball.x, .015, ball.z, .6, .01, .6, [0, 0, 0, .4]); gl.depthMask(true);
+  gl.depthMask(false); if (!fp) B(pl.x, .015, pl.z, .9, .01, .9, [0, 0, 0, .4]); B(ball.x, .015, ball.z, .6, .01, .6, [0, 0, 0, .4]); gl.depthMask(true);
   useM(SPH); const bR = mRy(ball.x * 3); draw(SPH, mul(mT(ball.x, .28, ball.z), mS(.56, .56, .56)), bR, [.95, .95, .95, 1]); useM(CUBE);
-  human(pl.x, pl.z, pl.ry, pl.moving ? Math.sin(pl.walk) * .7 : 0, { pants: '#222222', top: '#0a0a0a', cap: '#f2f2f2', logo: true });
+  if (fp && started) {
+    // lengan + tangan menempel kamera (gaya FPS), bergoyang saat jalan
+    const sway = pl.moving ? Math.sin(pl.walk) * .035 : Math.sin(t * 1.1) * .008, lift = pl.moving ? Math.abs(Math.sin(pl.walk)) * .02 : 0;
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    [-1, 1].forEach(s => {
+      const hx = tx + fx * .5 + rx * .26 * s, hz = tz + fz * .5 + rz * .26 * s, hy = .98 + lift;
+      const rM = mul(mT(hx, hy, hz), mRy(yaw)), R0 = mRy(yaw);
+      draw(CUBE, mul(rM, mul(mRz(sway * s), mS(.1, .32, .12))), mul(R0, mRz(sway * s)), hex('#0a0a0a'));
+      draw(CUBE, mul(rM, mul(mT(0, -.22, .04), mul(mRz(sway * s), mS(.09, .12, .1)))), mul(R0, mRz(sway * s)), hex('#e8c9a0'));
+    });
+  } else {
+    human(pl.x, pl.z, pl.ry, pl.moving ? Math.sin(pl.walk) * .7 : 0, { pants: '#222222', top: '#0a0a0a', cap: '#f2f2f2', logo: true });
+  }
 }
 let lastT = 0;
 function frame(ts) {
@@ -258,8 +282,8 @@ if (gl) requestAnimationFrame(frame);
 else { $('#bPlay').onclick = () => openCatalog('all'); setTimeout(() => { const l = $('#loadState span'); if (l) l.textContent = 'WebGL tidak tersedia — memakai KATALOG CEPAT.'; }, 300); }
 
 /* ---------- alur layar ---------- */
-const howHTML = `<div class="note"><b>DESKTOP</b><br>WASD = jalan · geser mouse (tahan klik) / ← → = putar kamera · E = ambil baju / interaksi · ESC = tutup panel.</div>
-<div class="note"><b>MOBILE</b><br>Joystick kiri bawah = jalan · geser layar = putar kamera · tombol E (atau tap tulisan "TAP …") = interaksi.</div>
+const howHTML = `<div class="note"><b>DESKTOP</b><br>WASD = jalan · geser mouse (tahan klik) / ← → = putar kamera · E = ambil baju / interaksi · V = ganti sudut pandang (orang ketiga/orang pertama) · ESC = tutup panel.</div>
+<div class="note"><b>MOBILE</b><br>Joystick kiri bawah = jalan · geser layar = putar kamera · tombol E (atau tap tulisan "TAP …") = interaksi · tombol TPV/FPV di atas = ganti sudut pandang.</div>
 <div class="note"><b>MISI</b><br>1) Dekati hanger, tekan E, pilih warna & ukuran, ADD TO CART.<br>2) Jalan ke KASIR (atau tekan tombol KASIR ▸ di atas = lompat langsung).<br>3) Isi data kirim, bayar via QRIS / transfer, upload bukti, dapat struk + ID pesanan.</div>
 <div class="note">Cuma mau belanja cepat? Tombol <b>KATALOG</b> membuka semua produk tanpa jalan-jalan. Harga & stok selalu dari toko utama.</div>
 <div class="note">Coba tendang bola di lantai. Cari papan drop di dinding belakang.</div>`;
