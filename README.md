@@ -6,7 +6,7 @@ Game memuat `https://fucktherules.my.id/firebase.js` (modul yang sama dengan tok
 
 ## Struktur
 ```
-CNAME  .nojekyll  index.html  style.css  game.js (3D: renderer WebGL mini tanpa library, kamera third-person, hanger, kasir)  shop.js (katalog, tas, checkout, kasir)
+CNAME  .nojekyll  index.html  style.css  game.js (3D: Three.js r160 dari CDN jsDelivr/unpkg, kamera TPV/FPV, toko + fasad kaca + jalan, hanger, kasir)  shop.js (katalog, tas, checkout, kasir)
 assets/qris.jpg (cadangan; utama memakai /qris.jpg dari toko utama)  assets/favicon.png
 ```
 Tidak ada file toko utama yang diubah. CNAME toko utama tetap `fucktherules.my.id`.
@@ -45,4 +45,4 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 ## Belum diwujudkan
 - Verifikasi pembayaran otomatis: tidak ada (QRIS statis, tanpa gateway). Status selalu *menunggu verifikasi admin*. Struktur siap: ganti `openPay()`/`submit()` di `shop.js` dengan gateway kelak.
 - Musik ambient (hanya efek suara WebAudio buatan, tombol mute). Rak khusus "City Series": belum ada penanda series di data produk — pakai filter katalog.
-- Model 3D hanya kotak low-poly (tanpa file model). Foto produk pada kaos butuh CORS Cloudinary; jika gagal, kaos tampil abu-abu polos. Bisa diganti model glTF + three.js nanti.
+- Semua model dibuat prosedural dari kode (kaos = badan+lengan+kerah berkerut, bukan kotak; tekstur bata/beton digambar via canvas). Warna kaos mengikuti field `warna` produk; foto produk tampil di panel/katalog, bukan ditempel ke kaos. Three.js dimuat dari CDN (butuh internet); jika gagal, game jatuh ke KATALOG CEPAT. Untuk realisme lebih tinggi: ganti dengan model .glb gratis (CC0) + GLTFLoader.
