@@ -39,7 +39,7 @@ if (THREE) {
     prC = Math.min(DPR, qCap(Q));
     renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: DPR < 2.5, powerPreference: 'high-performance' });
     renderer.toneMapping = THREE.NoToneMapping;
-    renderer.shadowMap.enabled = Q > 0; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.enabled = Q > 0; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
     scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(70, 1, .05, 90); scene.add(camera);
     rackG = new THREE.Group(); scene.add(rackG);
     cv.addEventListener('webglcontextlost', e => e.preventDefault());
@@ -263,7 +263,7 @@ let mirrorG = null, MIRI = 1;
 const MIR = [[-6, -5.96, 0, -6, -4.7], [-7.96, 4.7, Math.PI / 2, -6.8, 4.9], [7.96, 4.7, -Math.PI / 2, 6.9, 4.7]];   // x, z, rotasi, titik interaksi x, z
 function placeMirror(i) { const m = MIR[i]; mirrorG.position.set(m[0], 1.3, m[1]); mirrorG.rotation.y = m[2]; const s = SPOTS.find(q => q.id === 'mirror'); if (s) { s.x = m[3]; s.z = m[4]; } try { localStorage.setItem('fvckgame.mir2', String(i)); } catch { } }
 function moveMirror() { MIRI = (MIRI + 1) % MIR.length; placeMirror(MIRI); toast('CERMIN DIPINDAH'); beep('step'); }
-let PM = null, CM = null, ballM = null, blob = null, FPH = null, scrTex = null, scrCv = null, lastCart = -1;
+let PM = null, CM = null, ballM = null, blob = null, FPH = null, FPI = null, HS = null, scrTex = null, scrCv = null, lastCart = -1;
 function buildWorld() {
   const T = {};
   T.brick = ctex(1024, 1024, (c, w) => { c.fillStyle = '#6d5d54'; c.fillRect(0, 0, w, w); for (let r = 0; r < 16; r++) { const off = (r % 2) * 128; for (let x = -256; x < w + 256; x += 256) { c.fillStyle = `hsl(${10 + rnd() * 8},${34 + rnd() * 14}%,${40 + rnd() * 14}%)`; c.fillRect(x + off + 6, r * 64 + 5, 244, 54); } } for (let i = 0; i < 4000; i++) { c.fillStyle = `rgba(${rnd() < .5 ? '0,0,0' : '255,230,210'},${rnd() * .08})`; c.fillRect(rnd() * w, rnd() * w, 2 + rnd() * 8, 1 + rnd() * 3); } });
@@ -371,14 +371,16 @@ function buildWorld() {
   CM = makeHuman({ top: 0x0a0a0a, pants: 0x1a1a1a, shoes: 0x111111, cap: 0x0a0a0a }); CM.g.position.set(5, 0, 2.75); scene.add(CM.g);
   blob = new THREE.Mesh(new THREE.CircleGeometry(.4, 16), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .35, depthWrite: false })); blob.rotation.x = -Math.PI / 2; scene.add(blob);
   /* tangan first-person (menempel kamera) */
-  FPH = new THREE.Group(); camera.add(FPH);
-  const hm = c => new THREE.MeshStandardMaterial({ color: c, roughness: .8, depthTest: false });
+  /* tangan first-person: dirender di scene terpisah setelah depth buffer dibersihkan (tidak menembus dinding, tanpa artefak tumpang-tindih) */
+  HS = new THREE.Scene(); HS.add(new THREE.HemisphereLight(0xffffff, 0x9a8f80, 1.7)); { const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(.2, 1.5, .3); HS.add(dl); }
+  FPH = new THREE.Group(); HS.add(FPH); FPI = new THREE.Group(); FPH.add(FPI);
+  const hm = c => new THREE.MeshLambertMaterial({ color: c });
   [-1, 1].forEach(s => {
-    const a = new THREE.Group(); a.position.set(.2 * s, -.34, -.2); a.rotation.set(-1.22, 0, -.1 * s); FPH.add(a);
-    const part = (geo, mat, y, ro, sx = 1, sz = 1) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.renderOrder = ro; m.scale.set(sx, 1, sz); a.add(m); return m; };
-    part(new THREE.CapsuleGeometry(.062, .18, 4, 8), hm(0xe8e8e8), .08, 10); part(new THREE.CapsuleGeometry(.05, .14, 4, 8), hm(0xd9b08c), .28, 11);
-    part(new THREE.SphereGeometry(.058, 10, 8), hm(0xd9b08c), .42, 12, 1, .8).scale.y = 1.15;
-    const th = part(new THREE.CapsuleGeometry(.016, .04, 3, 6), hm(0xd9b08c), .4, 12); th.position.x = -.05 * s; th.rotation.z = .6 * s;
+    const a = new THREE.Group(); a.position.set(.2 * s, -.34, -.2); a.rotation.set(-1.22, 0, -.1 * s); FPI.add(a);
+    const part = (geo, mat, y, sx = 1, sz = 1) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.scale.set(sx, 1, sz); a.add(m); return m; };
+    part(new THREE.CapsuleGeometry(.062, .18, 4, 8), hm(0xe8e8e8), .08); part(new THREE.CapsuleGeometry(.05, .14, 4, 8), hm(0xd9b08c), .28);
+    part(new THREE.SphereGeometry(.058, 10, 8), hm(0xd9b08c), .42, 1, .8).scale.y = 1.15;
+    const th = part(new THREE.CapsuleGeometry(.016, .04, 3, 6), hm(0xd9b08c), .4); th.position.x = -.05 * s; th.rotation.z = .6 * s;
   });
   FPH.visible = false;
   placeMirror(MIRI); bakeStatic();
@@ -507,7 +509,8 @@ function updateCamera(dt) {
   if (fpv) {
     const ex = px + sy * .08, ey = 1.62 + bob, ez = pz - cyw * .08;
     camera.position.set(ex, ey, ez); camera.lookAt(ex + dir[0], ey + dir[1], ez + dir[2]);
-    FPH.position.set(Math.sin(pl.walk) * (pl.moving ? .012 : 0), (pl.moving ? Math.abs(Math.sin(pl.walk)) * .015 : Math.sin(t * 1.1) * .004), 0);
+    FPI.position.set(Math.sin(pl.walk) * (pl.moving ? .012 : 0), (pl.moving ? Math.abs(Math.sin(pl.walk)) * .015 : Math.sin(t * 1.1) * .004), 0);
+    camera.updateMatrixWorld(); FPH.position.copy(camera.position); FPH.quaternion.copy(camera.quaternion);
   } else {
     const dist0 = act ? 2.5 : 5.4, off = act ? .38 : 0, ty = act ? 1.5 : 1.3;
     const inside = (x, y, z) => x > -7.75 && x < 7.75 && z > -5.8 && z < 5.8 && y > .3 && y < 3.2;
@@ -531,7 +534,8 @@ function render(dt) {
   const n = cartCount(); if (n !== lastCart) { lastCart = n; drawScreen(); }
   updateCamera(dt);
   if (Q > 0 && (frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;      // bayangan diperbarui tiap 2 frame
-  renderer.render(scene, camera);
+  renderer.clear(); renderer.render(scene, camera);
+  if (fpv) { renderer.clearDepth(); renderer.render(HS, camera); }
 }
 function resize() {
   if (!renderer) return;
