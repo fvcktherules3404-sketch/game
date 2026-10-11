@@ -53,3 +53,10 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Kaos & hanger diperbesar 1.3x (jarak antar hanger 0.8 m; muat 16 produk per sisi rak + 20 di rak belakang; sisanya tetap ada di KATALOG). Foto produk tampil sebagai patch bulat di dada kaos (dimuat malas hanya untuk hanger yang dekat).
 - Cermin bisa dipindah: dekati cermin, tekan E, pilih "PINDAH CERMIN" (3 posisi dinding, tersimpan di localStorage).
 - Optimasi: satu draw call per hanger (atlas tekstur), geometri statis digabung per material, material Lambert untuk permukaan kasar, bayangan diperbarui tiap 2 frame, resolusi adaptif (turun dulu sebelum kualitas), batas ~60fps di layar 120Hz, lampu titik berkurang di kualitas rendah, tekstur dinding/lantai resolusi lebih tinggi + AO sudut dinding.
+
+## Pembaruan 11 Okt
+- Ruangan dibuat terang (siang, dinding krem, plafon putih); lantai kembali ke keramik kotak 2x2 seperti versi sebelumnya.
+- Mural graffiti "FVCK THE RULES" (assets/mural.png) di dinding belakang; logo + nama di atas pintu. Papan tanda yang sebelumnya tertutup (kotak hitam) sudah diperbaiki.
+- Cermin default di posisi ke-2 (dinding kiri depan); tetap bisa dipindah lewat E di cermin (kunci simpanan baru: fvckgame.mir2).
+- Rak "arsip/sold" dipindah ke tengah agar mural tidak tertutup.
+- Desain kaos asli: foto produk dibuang latarnya (flood-fill dari tepi) lalu dipetakan ke dada, bahu, dan lengan model 3D. Hanya ~12 hanger terdekat (<8 m) yang diberi tekstur desain; yang jauh memakai warna polos supaya ringan. Jika foto berlatar rumit / CORS gagal, foto utuh dipakai.
