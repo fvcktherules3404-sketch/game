@@ -31,12 +31,15 @@ for (const u of ['https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.
 const MOBILE = matchMedia('(pointer:coarse)').matches, DPR = Math.min(devicePixelRatio || 1, 3);
 let renderer = null, scene = null, camera = null, keyLight = null, rackG = null, Q = MOBILE ? 1 : 2, prC = 1;
 const lightsQ = [];                                  // [lampu, minimal kualitas]
-const qCap = q => [1.1, 1.75, 2][q];
-try { const sq = localStorage.getItem('fvckgame.q'); if (sq !== null) Q = Math.min(Q, +sq); } catch { }
+// Resolusi: default = resolusi ASLI layar (piksel fisik), dibatasi anggaran piksel per kualitas; turun otomatis (resS) hanya kalau FPS rendah.
+// (Sebelumnya dibatasi pixel-ratio 1.75 → di HP DPR 2.6+ gambar hanya ~67% resolusi asli = burik; mode 'situs desktop' DPR~1.1 jadi tajam.)
+let resS = 1;
+const PXB = [1.4e6, 3.4e6, 5.5e6];
+const prFor = q => { const a = Math.max(1, innerWidth * innerHeight); return Math.max(.7, Math.min(DPR, Math.sqrt(PXB[q] / a)) * resS); };
 const showErr = e => { console.error(e); const l = document.querySelector('#loadState span'); if (l) l.textContent = '3D error: ' + ((e && e.message) || e); };
 if (THREE) {
   try {
-    prC = Math.min(DPR, qCap(Q));
+    prC = prFor(Q);
     renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: DPR < 2.5, powerPreference: 'high-performance' });
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.shadowMap.enabled = Q > 0; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
@@ -539,18 +542,17 @@ function render(dt) {
 }
 function resize() {
   if (!renderer) return;
-  renderer.setPixelRatio(prC);
+  prC = prFor(Q); renderer.setPixelRatio(prC);
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
   camera.fov = Math.max(62, Math.min(95, 2 * Math.atan(Math.tan(75 * Math.PI / 360) / camera.aspect) * 180 / Math.PI));   // HP portrait: sudut pandang horizontal tetap lebar
   camera.updateProjectionMatrix();
 }
 function setQ(q) {
-  Q = q; try { localStorage.setItem('fvckgame.q', String(q)); } catch { }
+  Q = q; resS = 1;
   renderer.shadowMap.enabled = q > 0; if (keyLight) keyLight.castShadow = q > 0;
   lightsQ.forEach(([l, mq]) => l.visible = q >= mq);
   hGroups.forEach(o => o.m.castShadow = q > 1);
-  prC = Math.min(DPR, qCap(q));
   scene.traverse(o => { if (o.isMesh && o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
   resize();
 }
@@ -565,10 +567,10 @@ function frame(ts) {
   update(dt); render(dt);
   if (started && !paused && dt > 0) {                  // resolusi adaptif: turunkan resolusi dulu, baru kualitas
     fAcc += dt; fN++;
-    if (fN >= 90) {
-      const fps = fN / fAcc, top = Math.min(DPR, qCap(Q));
-      if (fps < 30) { if (prC > top * .62) { prC = Math.max(.7, prC * .86); resize(); } else if (Q > 0) setQ(Q - 1); }
-      else if (fps > 56 && prC < top) { prC = Math.min(top, prC * 1.12); resize(); }
+    if (fN >= 60) {
+      const fps = fN / fAcc;
+      if (fps < 30) { if (resS > .65) { resS = Math.max(.6, resS * .85); resize(); } else if (Q > 0) setQ(Q - 1); }
+      else if (fps > 56 && resS < 1) { resS = Math.min(1, resS * 1.1); resize(); }
       fAcc = 0; fN = 0;
     }
   }

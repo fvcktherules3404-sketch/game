@@ -61,3 +61,4 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Rak "arsip/sold" dipindah ke tengah agar mural tidak tertutup.
 - Desain kaos asli: foto produk dibuang latarnya (flood-fill dari tepi) lalu dipetakan ke dada, bahu, dan lengan model 3D. Hanya ~12 hanger terdekat (<8 m) yang diberi tekstur desain; yang jauh memakai warna polos supaya ringan. Jika foto berlatar rumit / CORS gagal, foto utuh dipakai.
 - Tangan FPV kini dirender di scene terpisah (depth dibersihkan sebelum menggambar tangan) — menggantikan trik depthTest:false yang menyebabkan garis/pita aneh di tangan.
+- Resolusi: sekarang default memakai resolusi asli layar (piksel fisik) dengan anggaran piksel per kualitas, dan turun otomatis (maks. ke 60%) hanya jika FPS < 30. Sebelumnya dibatasi pixel-ratio 1.75 sehingga di HP DPR 2.6+ hanya ~67% resolusi asli (burik), sedangkan mode 'situs desktop' (DPR ~1.1) tampil tajam. Preferensi kualitas tidak lagi disimpan antar sesi.
