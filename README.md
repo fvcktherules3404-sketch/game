@@ -67,3 +67,14 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Tombol 📱 di HUD (atau tombol P; Esc/ketuk di luar untuk menutup). Tampilan HP sungguhan: bezel, kamera punch-hole, status bar (jam asli perangkat), layar beranda dengan ikon aplikasi, tombol beranda.
 - Aplikasi **Berita** (daftar + filter kategori + detail) dan **Diskusi** (post admin, jumlah reaksi, balasan) membaca Firebase jurnal `fvck-journal` lewat `journalDb` dari firebase.js web utama — query yang sama dengan journal.js (`articles` status=published orderBy publishedAt; `posts` status=published orderBy createdAt; `replies`). Hanya BACA; membalas/bereaksi tetap di web utama (tombol "Ikut diskusi di web utama"). Butuh firebase.js live web utama yang mengekspor `journalDb` dan Firestore SDK 12.13.0 yang sama.
 - Data baru dimuat saat HP dibuka pertama kali; tombol ⟳ untuk muat ulang. Jika gagal (rules/jaringan/index), tampil pesan + "Coba lagi".
+
+## Logout
+- Menu ☰ → bagian **AKUN**: menampilkan email yang sedang login + tombol **LOGOUT** (atau "Belum login").
+- Checkout (kasir): kalau sudah login, ada tombol **LOGOUT** di bawah "Login sebagai …". Email yang terisi otomatis dikosongkan setelah logout.
+- Logout memakai `customerSignOut()` dari firebase.js web utama (keluar dari akun toko + akun jurnal); jika tidak tersedia, jatuh ke `auth.signOut()`.
+
+## Browser mini di dalam HP
+- Semua tombol web di HP (ikon Jurnal/Toko, "Baca selengkapnya", "Ikut diskusi di web utama") membuka halaman **di dalam layar HP** (iframe + bilah alamat, ‹ kembali, ⟳, ↗ buka di tab baru) — pemain tidak keluar dari game.
+- Syarat: situs tujuan boleh di-embed (tidak mengirim header `X-Frame-Options` / CSP `frame-ancestors`). GitHub Pages tidak memblokirnya secara default. Jika halaman tidak tampil, setelah 8 detik muncul saran "Buka di tab baru".
+- Selama browser HP aktif, game berhenti menggambar 3D (hemat baterai/GPU) dan lanjut lagi saat kembali ke aplikasi HP/menutup HP.
+- Menu ☰ → "Kembali ke toko utama" dan pintu toko tetap keluar ke web utama (sengaja).

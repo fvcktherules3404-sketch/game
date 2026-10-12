@@ -155,3 +155,12 @@ label.f{font-size:13px;font-weight:600;color:var(--ink);display:block;margin:8px
 .ph-empty{padding:26px 18px;text-align:center;font-size:13px;color:var(--ink2)}.ph-empty b{display:block;font-size:15px;color:var(--ink);margin-bottom:4px}.ph-empty .ph-btn2{margin:10px 0 0}
 .ph-skel{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:14px;display:grid;gap:8px}.ph-skel i{height:11px;border-radius:6px;background:linear-gradient(90deg,#eee 25%,#f7f7f7 50%,#eee 75%);background-size:200% 100%;animation:phsh 1.2s linear infinite}.ph-skel i:nth-child(2){width:80%}.ph-skel i:nth-child(3){width:55%}
 @keyframes phsh{to{background-position:-200% 0}}
+
+/* browser mini di dalam HP */
+.ph-app.ph-web{display:flex;flex-direction:column;overflow:hidden;touch-action:auto}
+.ph-web .ph-bar{position:relative;top:auto;flex:none;gap:4px}
+.ph-url{flex:1;min-width:0;display:flex;align-items:center;gap:6px;background:var(--soft);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:600;color:var(--ink2)}.ph-url i{font-style:normal;font-size:11px}.ph-url span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-wf{position:relative;flex:1;min-height:0;background:#fff}.ph-wf iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.ph-wl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;font-size:13px;color:var(--ink2);pointer-events:none}
+.ph-spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .8s linear infinite}
+.ph-hint{position:absolute;left:10px;right:10px;bottom:10px;background:var(--ink);color:var(--cream);border-radius:14px;padding:10px 12px;font-size:12px;line-height:1.45;box-shadow:0 6px 18px rgba(0,0,0,.3)}.ph-hint button{display:inline;text-decoration:underline;font-weight:700}

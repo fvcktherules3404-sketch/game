@@ -62,7 +62,7 @@ async function loadReplies(id) {
   return (data.replies[id] = s.docs.map(d => ({ id: d.id, ...d.data() })));
 }
 
-export function initPhone({ onOpen, onClose } = {}) {
+export function initPhone({ onOpen, onClose, onWeb } = {}) {
   const root = document.createElement('div'); root.id = 'phone'; root.className = 'ph-wrap'; root.hidden = true;
   root.innerHTML = `<button class="ph-x" aria-label="Tutup HP">✕</button>
   <div class="ph-device"><i class="ph-key k1"></i><i class="ph-key k2"></i><i class="ph-key k3"></i>
@@ -73,7 +73,7 @@ export function initPhone({ onOpen, onClose } = {}) {
     </div></div>`;
   document.body.appendChild(root);
   const app = root.querySelector('#phApp'), timeEl = root.querySelector('.ph-time');
-  let view = { n: 'home' }, hist = [], cat = 'all', tick = 0, open = false;
+  let view = { n: 'home' }, hist = [], cat = 'all', tick = 0, open = false, webOn = false, wt = 0;
 
   const clock = () => { const d = new Date(); timeEl.textContent = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'); };
   const bar = (title, back, refresh) => `<div class="ph-bar">${back ? '<button class="ph-bk" data-back aria-label="Kembali">‹</button>' : '<span class="ph-sp"></span>'}<span class="ph-tt">${esc(title)}</span>${refresh ? '<button class="ph-bk" data-refresh aria-label="Muat ulang">⟳</button>' : '<span class="ph-sp"></span>'}</div>`;
@@ -109,7 +109,7 @@ export function initPhone({ onOpen, onClose } = {}) {
     const a = (data.articles || []).find(x => x.id === id); app.className = 'ph-app';
     if (!a) { app.innerHTML = bar('Berita', true) + errBox('Berita tidak ditemukan.', false); return; }
     app.innerHTML = bar(catLabel(a.category), true) + `<div class="ph-art">${cover(a)}<div class="ph-meta"><span class="ph-tag">${esc(catLabel(a.category))}</span><time>${fmtDate(a.publishedAt || a.createdAt)}</time></div><h2>${esc(a.title)}</h2><p class="ph-sum">${esc(a.summary)}</p>
-      <button class="ph-btn2" data-web="${JOURNAL_URL}/article.html?id=${encodeURIComponent(a.id)}">Baca selengkapnya ↗</button></div>`;
+      <button class="ph-btn2" data-web="${JOURNAL_URL}/article.html?id=${encodeURIComponent(a.id)}">Baca selengkapnya ›</button></div>`;
   }
 
   async function renderDiskusi() {
@@ -121,17 +121,33 @@ export function initPhone({ onOpen, onClose } = {}) {
       list.innerHTML = items.length ? items.map(p => `<article class="ph-post" data-post="${esc(p.id)}"><header><span class="ph-av">F</span><div><strong>FvcktheRules</strong><span class="ph-tag adm">Admin</span>${p.pinned ? '<span class="ph-tag pin">Pinned</span>' : ''}<time>${fmtDT(p.createdAt)}</time></div></header>
         ${p.label ? `<h3>${esc(p.label)}</h3>` : ''}<p>${esc(p.content)}</p>${p.image ? `<img class="ph-pimg" src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
         <div class="ph-act"><span>${TYPES.map(([t, e]) => `${e} ${p.counts?.[t] ?? 0}`).join('&nbsp;&nbsp;')}</span><button data-replies="${esc(p.id)}">💬 ${p.replyCount ?? 0} balasan</button></div><div class="ph-thread" hidden></div></article>`).join('')
-        + `<button class="ph-btn2 ghost" data-web="${MAIN_URL}">Ikut diskusi di web utama ↗</button>`
+        + `<button class="ph-btn2 ghost" data-web="${MAIN_URL}">Ikut diskusi di web utama ›</button>`
         : '<div class="ph-empty"><b>Belum ada post</b><p>Post pertama dari tim akan muncul di sini.</p></div>';
     } catch (e) { if (my === tick) list.innerHTML = errBox(e && e.code === 'permission-denied' ? 'Akses ke jurnal ditolak (rules Firestore).' : (e && e.message) || 'Periksa koneksi internet.', true); }
   }
 
-  function render() { clock(); root.querySelector('.ph-screen').classList.toggle('home', view.n === 'home'); ({ home: renderHome, berita: renderBerita, diskusi: renderDiskusi, artikel: () => renderArticle(view.id) })[view.n](); }
+  // browser mini di dalam HP: halaman web tampil di layar HP (iframe), pemain tidak keluar dari game
+  function renderWeb() {
+    const u = view.url; let host = u; try { const x = new URL(u); host = x.host + (x.pathname !== '/' ? x.pathname : ''); } catch { }
+    app.className = 'ph-app ph-web';
+    app.innerHTML = `<div class="ph-bar"><button class="ph-bk" data-back aria-label="Kembali ke HP">‹</button><div class="ph-url"><i>${/^https:/.test(u) ? '🔒' : ''}</i><span>${esc(host)}</span></div><button class="ph-bk" data-reload aria-label="Muat ulang">⟳</button><button class="ph-bk" data-ext="${esc(u)}" aria-label="Buka di tab baru">↗</button></div>
+      <div class="ph-wf"><iframe src="${esc(u)}" title="${esc(view.title || 'Web')}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals" referrerpolicy="strict-origin-when-cross-origin" allow="clipboard-write"></iframe>
+      <div class="ph-wl"><i class="ph-spin"></i><span>Memuat…</span></div>
+      <div class="ph-hint" hidden>Halaman tidak tampil? Beberapa situs tidak bisa dibuka di dalam HP. <button data-ext="${esc(u)}">Buka di tab baru ↗</button></div></div>`;
+    const fr = app.querySelector('iframe'), ld = app.querySelector('.ph-wl'), hint = app.querySelector('.ph-hint');
+    fr.addEventListener('load', () => { ld.hidden = true; clearTimeout(wt); hint.hidden = true; });
+    clearTimeout(wt); wt = setTimeout(() => { hint.hidden = false; }, 8000);
+    if (!webOn) { webOn = true; onWeb && onWeb(true); }                  // game berhenti menggambar 3D selama browser HP aktif (hemat baterai)
+  }
+
+  function render() { if (view.n !== 'web' && webOn) { webOn = false; clearTimeout(wt); onWeb && onWeb(false); } clock(); root.querySelector('.ph-screen').classList.toggle('home', view.n === 'home'); ({ home: renderHome, berita: renderBerita, diskusi: renderDiskusi, artikel: () => renderArticle(view.id), web: renderWeb })[view.n](); }
 
   app.addEventListener('click', async e => {
     const t = e.target.closest('button, .ph-card'); if (!t) return;
     if (t.dataset.open) return go({ n: t.dataset.open });
-    if (t.dataset.web) return void window.open(t.dataset.web, '_blank', 'noopener');
+    if (t.dataset.web) return go({ n: 'web', url: t.dataset.web, title: t.dataset.title || '' });
+    if (t.dataset.ext) return void window.open(t.dataset.ext, '_blank', 'noopener');
+    if (t.dataset.reload !== undefined) { const fr = app.querySelector('iframe'); if (fr) { app.querySelector('.ph-wl').hidden = false; fr.src = view.url; } return; }
     if (t.dataset.back !== undefined) return hist.length ? (view = hist.pop(), render()) : home();
     if (t.dataset.refresh !== undefined || t.dataset.retry !== undefined) { if (view.n === 'berita') data.articles = null; if (view.n === 'diskusi') { data.posts = null; data.replies = {}; } return render(); }
     if (t.dataset.cat) { cat = t.dataset.cat; return render(); }
@@ -145,7 +161,7 @@ export function initPhone({ onOpen, onClose } = {}) {
       } catch { th.innerHTML = '<p class="ph-muted">Balasan belum bisa dimuat.</p>'; }
     }
   });
-  const closePhone = () => { if (!open) return; open = false; root.hidden = true; clearInterval(clk); onClose && onClose(); };
+  const closePhone = () => { if (!open) return; open = false; root.hidden = true; clearInterval(clk); clearTimeout(wt); app.innerHTML = ''; if (webOn) { webOn = false; onWeb && onWeb(false); } onClose && onClose(); };
   let clk = 0;
   const openPhone = () => { if (open) return; open = true; hist = []; view = { n: 'home' }; root.hidden = false; onOpen && onOpen(); render(); clk = setInterval(() => { clock(); if (view.n === 'home') renderHome(); }, 20000); };
   root.querySelector('.ph-x').onclick = closePhone;

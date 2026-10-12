@@ -138,7 +138,7 @@ export function openCheckout() {
   if (!lines().length) return openCart();
   const f = co.f; if (S.user && !f.email) f.email = S.user.email || '';
   show('CHECKOUT — KASIR', `<div class="note">Data pengiriman sama seperti di toko utama. Setelah ini kamu bayar (QRIS / transfer), upload bukti, lalu pesanan masuk ke admin.</div>
-    <div id="authBox">${S.user ? `<div class="note">Login sebagai ${esc(S.user.email)}. Pesanan masuk ke riwayat akunmu.</div>` : `<button data-act="loginToggle" style="width:100%">LOGIN (OPSIONAL)</button><div id="loginForm" hidden><input id="lgE" type="email" placeholder="Email akun toko" autocomplete="email"><input id="lgP" type="password" placeholder="Password" autocomplete="current-password"><button data-act="login" class="pri" style="width:100%">MASUK</button><div class="err-t" id="lgErr"></div></div>`}</div>
+    <div id="authBox">${S.user ? `<div class="note">Login sebagai ${esc(S.user.email)}. Pesanan masuk ke riwayat akunmu.</div><button data-act="logout" style="width:100%">LOGOUT</button>` : `<button data-act="loginToggle" style="width:100%">LOGIN (OPSIONAL)</button><div id="loginForm" hidden><input id="lgE" type="email" placeholder="Email akun toko" autocomplete="email"><input id="lgP" type="password" placeholder="Password" autocomplete="current-password"><button data-act="login" class="pri" style="width:100%">MASUK</button><div class="err-t" id="lgErr"></div></div>`}</div>
     <label class="f">NAMA LENGKAP</label><input data-f="nama" value="${esc(f.nama)}" autocomplete="name">
     <label class="f">NO. WHATSAPP</label><input data-f="wa" value="${esc(f.wa)}" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx">
     <label class="f">EMAIL</label><input data-f="email" type="email" value="${esc(f.email)}" autocomplete="email">
@@ -298,11 +298,17 @@ P.body.addEventListener('click', async e => {
   else if (a === 'submit') submit();
   else if (a === 'copy') { try { await navigator.clipboard.writeText(v); ui.toast('Tersalin: ' + v); } catch { ui.toast('Tahan & salin manual: ' + v); } }
   else if (a === 'close') closePanel();
+  else if (a === 'logout') { const old = S.user?.email; if (await logout()) { if (old && co.f.email === old) co.f.email = ''; ui.toast('Kamu sudah logout'); openCheckout(); } else ui.toast('Logout gagal, coba lagi'); }
   else if (a === 'loginToggle') $('#loginForm').hidden = !$('#loginForm').hidden;
   else if (a === 'login') { const m = $('#lgErr'); m.textContent = 'Masuk…'; try { await S.fb.customerSignIn($('#lgE').value.trim(), $('#lgP').value); S.user = S.fb.auth.currentUser; co.f.email = S.user?.email || co.f.email; openCheckout(); } catch (er) { m.textContent = 'Login gagal. Cek email/password.'; } }
 });
 P.body.addEventListener('input', e => { const k = e.target.dataset.f; if (k) { co.f[k] = e.target.value; if (k === 'zip') co.f.zip = e.target.value.replace(/\D/g, ''); } });
 export const openProductFrom = openProduct;
+// logout akun toko (sama dengan web utama: keluar dari akun toko + akun jurnal)
+export async function logout() {
+  try { if (S.fb && S.fb.customerSignOut) await S.fb.customerSignOut(); else if (S.fb && S.fb.auth) await S.fb.auth.signOut(); } catch (e) { console.warn('logout gagal', e); return false; }
+  S.user = null; return true;
+}
 
 export const showRaw = show;
 export function getBannerText() { return new Promise(res => { try { S.fb.listenBannerText(d => res(d)); setTimeout(() => res(null), 4000); } catch { res(null); } }); }

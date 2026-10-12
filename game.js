@@ -1,8 +1,9 @@
-import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN } from './shop.js';
-import { initPhone } from './phone.js?v=20261011d';
+import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js';
+import { initPhone } from './phone.js?v=20261012a';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
+let rPause = false;                                   // true = jangan menggambar 3D (browser HP sedang aktif)
 let phone = { isOpen: () => false, close() { }, toggle() { } };   // diganti initPhone() setelah keys/joystick siap
 /* ---------- audio (WebAudio, tanpa file) ---------- */
 let ac = null;
@@ -567,7 +568,7 @@ function frame(ts) {
   if (ts - lastR < 10.5) return;                      // layar 120Hz → render ~60fps (hemat baterai, HP tidak panas)
   lastR = ts;
   const dt = Math.min(.05, (ts - (lastT || ts)) / 1000); lastT = ts; t += dt;
-  update(dt); render(dt);
+  update(dt); if (!rPause) render(dt);
   if (started && !paused && dt > 0) {                  // resolusi adaptif: turunkan resolusi dulu, baru kualitas
     fAcc += dt; fN++;
     if (fN >= 60) {
@@ -592,12 +593,13 @@ function play() {
   $('#intro').hidden = true; $('#hud').hidden = false; started = true; paused = false; beep('door'); setMute(muted);
   if (!localStorage.getItem('fvckgame.seen')) { localStorage.setItem('fvckgame.seen', '1'); say('SELAMAT DATANG', document.body.classList.contains('is-touch') ? 'Joystick = jalan, geser layar = putar kamera, E = ambil baju dari hanger. KASIR ▸ = langsung ke kasir.' : 'WASD = jalan, geser mouse = putar kamera, E = ambil baju dari hanger. KASIR ▸ = langsung ke kasir.'); }
 }
-phone = initPhone({ onOpen: () => { paused = true; for (const k in keys) keys[k] = false; jx = jy = 0; closeSay(); if (panelOpen()) closePanel(); }, onClose: () => { paused = !started; } });
+phone = initPhone({ onOpen: () => { paused = true; for (const k in keys) keys[k] = false; jx = jy = 0; closeSay(); if (panelOpen()) closePanel(); }, onClose: () => { paused = !started; }, onWeb: a => { rPause = a; } });
 $('#bPhone').onclick = () => { if (started && !panelOpen()) phone.toggle(); };
 $('#bPlay').onclick = play; $('#bHow').onclick = () => showRaw('HOW TO PLAY', howHTML);
 $('#bQuick').onclick = () => openCatalog('all');
-$('#bMenu').onclick = () => showRaw('MENU', `${howHTML}<div class="foot">${hasReceipt() ? '<button id="mRec">STRUK TERAKHIR</button>' : ''}<a class="btn" href="${MAIN_ORIGIN}/">KEMBALI KE TOKO UTAMA</a></div>`);
-document.addEventListener('click', e => { if (e.target.id === 'mRec') openReceipt(); });
+const acctHTML = () => S.user ? `<div class="note">Login sebagai <b>${esc(S.user.email || 'akun toko')}</b>.</div><button id="mOut" style="width:100%">LOGOUT</button>` : '<div class="note">Belum login. Login bersifat opsional dan ada di langkah checkout (kasir).</div>';
+$('#bMenu').onclick = () => showRaw('MENU', `${howHTML}<div class="lbl">AKUN</div>${acctHTML()}<div class="foot">${hasReceipt() ? '<button id="mRec">STRUK TERAKHIR</button>' : ''}<a class="btn" href="${MAIN_ORIGIN}/">KEMBALI KE TOKO UTAMA</a></div>`);
+document.addEventListener('click', async e => { if (e.target.id === 'mRec') openReceipt(); if (e.target.id === 'mOut') { e.target.disabled = true; const ok = await logout(); toast(ok ? 'Kamu sudah logout' : 'Logout gagal, coba lagi'); $('#bMenu').onclick(); } });
 $('#bCatalog').onclick = () => openCatalog('all'); $('#bCart').onclick = openCart; $('#bKasir').onclick = () => { cartCount() ? openCheckout() : cashier(); };
 $('#bMute').onclick = () => setMute(!muted);
 
