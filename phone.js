@@ -1,0 +1,155 @@
+// phone.js — "HP" di dalam game: Berita & Diskusi diambil dari Firebase JURNAL (fvck-journal) milik web utama.
+// Hanya BACA (read-only), memakai query yang sama persis dengan journal.js di web utama. Membalas/bereaksi tetap lewat web utama.
+import { S } from './shop.js';
+
+const JOURNAL_URL = 'https://jurnal-fucktherules.my.id', MAIN_URL = 'https://fucktherules.my.id/';
+const FS_URL = 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';   // sama dengan versi di firebase.js web utama
+const CATS = [['all', 'Semua'], ['football', 'Football'], ['indonesia', 'Indonesia'], ['world', 'World'], ['culture', 'Culture'], ['opinion', 'Opinion']];
+const TYPES = [['fire', '🔥'], ['heart', '❤️'], ['like', '👍']];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const toDate = ts => (ts?.toDate ? ts.toDate() : ts ? new Date(ts) : null);
+const fmtDate = ts => { const d = toDate(ts); return d ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; };
+const fmtDT = ts => { const d = toDate(ts); return d ? d.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; };
+const catLabel = k => (CATS.find(c => c[0] === k) || [k, k || 'News'])[1];
+
+const ICON = {
+  news: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14H6a2 2 0 0 1-2-2V5z"/><path d="M17 8h3v9a2 2 0 0 1-2 2"/><path d="M7.5 9h6M7.5 12.5h6M7.5 16h3.5"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12z"/><path d="M9 11h6M9 14h4"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>',
+  shop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l1.5-4h13L20 8"/><path d="M4 8h16v2a3 3 0 0 1-6 0 3 3 0 0 1-4 0 3 3 0 0 1-6 0V8z"/><path d="M5 12v8h14v-8"/></svg>',
+  sig: '<svg viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx=".8"/><rect x="5" y="5" width="3" height="7" rx=".8"/><rect x="10" y="2.5" width="3" height="9.5" rx=".8"/><rect x="15" y="0" width="3" height="12" rx=".8"/></svg>',
+  wifi: '<svg viewBox="0 0 18 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1.5 4.5a11 11 0 0 1 15 0M4.2 7.4a7 7 0 0 1 9.6 0M7 10.2a3 3 0 0 1 4 0"/></svg>',
+  bat: '<svg viewBox="0 0 26 13" fill="none"><rect x="1" y="1" width="21" height="11" rx="3.2" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="3" width="17" height="7" rx="1.6" fill="currentColor"/><rect x="23" y="4.5" width="2" height="4" rx="1" fill="currentColor"/></svg>',
+};
+
+// sampul tanpa foto: potongan lapangan sepak bola (sama dengan web utama)
+function pitch(seed) {
+  const h = [...String(seed)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7), zoom = [1, 1.6, 2.2, 3][h % 4], W = 105, H = 68, w = W / zoom, hh = H / zoom;
+  const x = (((h >> 3) % 1000) / 1000) * (W - w), y = (((h >> 13) % 1000) / 1000) * (H - hh);
+  return `<svg viewBox="${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${hh.toFixed(2)}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width=".5"><rect x="0" y="0" width="105" height="68"/><line x1="52.5" y1="0" x2="52.5" y2="68"/><circle cx="52.5" cy="34" r="9.15"/><rect x="0" y="13.84" width="16.5" height="40.32"/><rect x="88.5" y="13.84" width="16.5" height="40.32"/><rect x="0" y="24.84" width="5.5" height="18.32"/><rect x="99.5" y="24.84" width="5.5" height="18.32"/></g></svg>`;
+}
+const cover = a => `<div class="ph-cover">${a.image ? `<img src="${esc(a.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<div class="ph-pitch">${pitch(a.id || a.title)}</div></div>`;
+const skel = n => Array.from({ length: n }, () => '<div class="ph-skel"><i></i><i></i><i></i></div>').join('');
+const errBox = (msg, retry) => `<div class="ph-empty"><b>Belum bisa dimuat</b><p>${esc(msg)}</p>${retry ? '<button class="ph-btn2" data-retry>Coba lagi</button>' : ''}<button class="ph-btn2 ghost" data-web="${MAIN_URL}">Buka web utama ↗</button></div>`;
+
+let FS = null;
+async function fs() {                                       // Firestore jurnal dari modul firebase.js web utama (journalDb) + SDK versi yang sama
+  if (FS) return FS;
+  const fb = S.fb; if (!fb || !fb.journalDb) throw new Error('Koneksi ke jurnal belum tersedia.');
+  const f = await import(FS_URL); FS = { db: fb.journalDb, ...f }; return FS;
+}
+const data = { articles: null, posts: null, replies: {} };
+async function loadArticles() {
+  const { db, collection, query, where, orderBy, limit, getDocs } = await fs();
+  const snap = await getDocs(query(collection(db, 'articles'), where('status', '==', 'published'), orderBy('publishedAt', 'desc'), limit(40)));
+  return (data.articles = snap.docs.map(d => ({ id: d.id, ...d.data() })));
+}
+async function loadPosts() {
+  const { db, collection, query, where, orderBy, limit, getDocs, getCountFromServer } = await fs();
+  const snap = await getDocs(query(collection(db, 'posts'), where('status', '==', 'published'), orderBy('createdAt', 'desc'), limit(12)));
+  const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const cnt = q => getCountFromServer(q).then(s => s.data().count).catch(() => 0);
+  await Promise.all(items.map(async p => {
+    const col = collection(db, 'posts', p.id, 'reactions');
+    const [rc, ...tc] = await Promise.all([cnt(collection(db, 'posts', p.id, 'replies')), ...TYPES.map(([t]) => cnt(query(col, where('type', '==', t))))]);
+    p.replyCount = rc; p.counts = Object.fromEntries(TYPES.map(([t], i) => [t, tc[i]]));
+  }));
+  return (data.posts = items);
+}
+async function loadReplies(id) {
+  const { db, collection, query, orderBy, limit, getDocs } = await fs();
+  const s = await getDocs(query(collection(db, 'posts', id, 'replies'), orderBy('createdAt', 'asc'), limit(60)));
+  return (data.replies[id] = s.docs.map(d => ({ id: d.id, ...d.data() })));
+}
+
+export function initPhone({ onOpen, onClose } = {}) {
+  const root = document.createElement('div'); root.id = 'phone'; root.className = 'ph-wrap'; root.hidden = true;
+  root.innerHTML = `<button class="ph-x" aria-label="Tutup HP">✕</button>
+  <div class="ph-device"><i class="ph-key k1"></i><i class="ph-key k2"></i><i class="ph-key k3"></i>
+    <div class="ph-screen">
+      <div class="ph-status"><b class="ph-time"></b><span class="ph-cam"></span><span class="ph-sys">${ICON.sig}${ICON.wifi}${ICON.bat}</span></div>
+      <div class="ph-app" id="phApp"></div>
+      <button class="ph-nav" aria-label="Beranda"><i></i></button>
+    </div></div>`;
+  document.body.appendChild(root);
+  const app = root.querySelector('#phApp'), timeEl = root.querySelector('.ph-time');
+  let view = { n: 'home' }, hist = [], cat = 'all', tick = 0, open = false;
+
+  const clock = () => { const d = new Date(); timeEl.textContent = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'); };
+  const bar = (title, back, refresh) => `<div class="ph-bar">${back ? '<button class="ph-bk" data-back aria-label="Kembali">‹</button>' : '<span class="ph-sp"></span>'}<span class="ph-tt">${esc(title)}</span>${refresh ? '<button class="ph-bk" data-refresh aria-label="Muat ulang">⟳</button>' : '<span class="ph-sp"></span>'}</div>`;
+  const go = (v, push = true) => { if (push) hist.push(view); view = v; render(); app.scrollTop = 0; };
+  const home = () => { hist = []; view = { n: 'home' }; render(); };
+
+  function renderHome() {
+    const d = new Date(), tm = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'), dt = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+    app.className = 'ph-app ph-homebg';
+    app.innerHTML = `<div class="ph-widget"><div class="ph-bigtime">${tm}</div><div class="ph-date">${esc(dt)}</div></div>
+    <div class="ph-grid">
+      <button data-open="berita"><span class="ph-ic" style="background:#ffca1f;color:#111">${ICON.news}</span><em>Berita</em></button>
+      <button data-open="diskusi"><span class="ph-ic" style="background:#45e08f;color:#111">${ICON.chat}</span><em>Diskusi</em></button>
+      <button data-web="${JOURNAL_URL}"><span class="ph-ic" style="background:#111;color:#fffdf3">${ICON.book}</span><em>Jurnal</em></button>
+      <button data-web="${MAIN_URL}"><span class="ph-ic" style="background:#b5c4ff;color:#111">${ICON.shop}</span><em>Toko</em></button>
+    </div>
+    <div class="ph-brand"><img src="assets/logo.png" alt="" width="34" height="48"><span>fvcktherules</span></div>`;
+  }
+
+  async function renderBerita() {
+    app.className = 'ph-app';
+    const chips = `<div class="ph-chips">${CATS.map(([k, l]) => `<button class="${cat === k ? 'on' : ''}" data-cat="${k}">${l}</button>`).join('')}</div>`;
+    app.innerHTML = bar('Berita', true, true) + chips + '<div class="ph-list" id="phList">' + skel(3) + '</div>';
+    const list = app.querySelector('#phList'), my = ++tick;
+    try {
+      const items = data.articles || await loadArticles(); if (my !== tick) return;
+      const f = cat === 'all' ? items : items.filter(a => a.category === cat);
+      list.innerHTML = f.length ? f.map(a => `<article class="ph-card" data-art="${esc(a.id)}">${cover(a)}<div class="ph-cb"><div class="ph-meta"><span class="ph-tag">${esc(catLabel(a.category))}</span><time>${fmtDate(a.publishedAt || a.createdAt)}</time></div><h3>${esc(a.title)}</h3><p>${esc(a.summary)}</p></div></article>`).join('')
+        : '<div class="ph-empty"><b>Belum ada berita</b><p>Berita baru muncul setelah editor menyetujuinya.</p></div>';
+    } catch (e) { if (my === tick) list.innerHTML = errBox(e && e.code === 'permission-denied' ? 'Akses ke jurnal ditolak (rules Firestore).' : (e && e.message) || 'Periksa koneksi internet.', true); }
+  }
+  function renderArticle(id) {
+    const a = (data.articles || []).find(x => x.id === id); app.className = 'ph-app';
+    if (!a) { app.innerHTML = bar('Berita', true) + errBox('Berita tidak ditemukan.', false); return; }
+    app.innerHTML = bar(catLabel(a.category), true) + `<div class="ph-art">${cover(a)}<div class="ph-meta"><span class="ph-tag">${esc(catLabel(a.category))}</span><time>${fmtDate(a.publishedAt || a.createdAt)}</time></div><h2>${esc(a.title)}</h2><p class="ph-sum">${esc(a.summary)}</p>
+      <button class="ph-btn2" data-web="${JOURNAL_URL}/article.html?id=${encodeURIComponent(a.id)}">Baca selengkapnya ↗</button></div>`;
+  }
+
+  async function renderDiskusi() {
+    app.className = 'ph-app';
+    app.innerHTML = bar('Diskusi', true, true) + '<div class="ph-list" id="phList">' + skel(2) + '</div>';
+    const list = app.querySelector('#phList'), my = ++tick;
+    try {
+      const items = data.posts || await loadPosts(); if (my !== tick) return;
+      list.innerHTML = items.length ? items.map(p => `<article class="ph-post" data-post="${esc(p.id)}"><header><span class="ph-av">F</span><div><strong>FvcktheRules</strong><span class="ph-tag adm">Admin</span>${p.pinned ? '<span class="ph-tag pin">Pinned</span>' : ''}<time>${fmtDT(p.createdAt)}</time></div></header>
+        ${p.label ? `<h3>${esc(p.label)}</h3>` : ''}<p>${esc(p.content)}</p>${p.image ? `<img class="ph-pimg" src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+        <div class="ph-act"><span>${TYPES.map(([t, e]) => `${e} ${p.counts?.[t] ?? 0}`).join('&nbsp;&nbsp;')}</span><button data-replies="${esc(p.id)}">💬 ${p.replyCount ?? 0} balasan</button></div><div class="ph-thread" hidden></div></article>`).join('')
+        + `<button class="ph-btn2 ghost" data-web="${MAIN_URL}">Ikut diskusi di web utama ↗</button>`
+        : '<div class="ph-empty"><b>Belum ada post</b><p>Post pertama dari tim akan muncul di sini.</p></div>';
+    } catch (e) { if (my === tick) list.innerHTML = errBox(e && e.code === 'permission-denied' ? 'Akses ke jurnal ditolak (rules Firestore).' : (e && e.message) || 'Periksa koneksi internet.', true); }
+  }
+
+  function render() { clock(); root.querySelector('.ph-screen').classList.toggle('home', view.n === 'home'); ({ home: renderHome, berita: renderBerita, diskusi: renderDiskusi, artikel: () => renderArticle(view.id) })[view.n](); }
+
+  app.addEventListener('click', async e => {
+    const t = e.target.closest('button, .ph-card'); if (!t) return;
+    if (t.dataset.open) return go({ n: t.dataset.open });
+    if (t.dataset.web) return void window.open(t.dataset.web, '_blank', 'noopener');
+    if (t.dataset.back !== undefined) return hist.length ? (view = hist.pop(), render()) : home();
+    if (t.dataset.refresh !== undefined || t.dataset.retry !== undefined) { if (view.n === 'berita') data.articles = null; if (view.n === 'diskusi') { data.posts = null; data.replies = {}; } return render(); }
+    if (t.dataset.cat) { cat = t.dataset.cat; return render(); }
+    if (t.dataset.art) return go({ n: 'artikel', id: t.dataset.art });
+    if (t.dataset.replies) {
+      const post = t.closest('.ph-post'), th = post.querySelector('.ph-thread'); if (!th.hidden) { th.hidden = true; return; }
+      th.hidden = false; th.innerHTML = '<div class="ph-skel"><i></i><i></i></div>';
+      try {
+        const rs = data.replies[t.dataset.replies] || await loadReplies(t.dataset.replies);
+        th.innerHTML = rs.length ? rs.map(r => `<div class="ph-reply"><strong>${esc(r.name)}</strong>${r.isAdmin ? '<span class="ph-tag adm">Admin</span>' : ''}<time>${fmtDT(r.createdAt)}</time><p>${esc(r.content)}</p></div>`).join('') : '<p class="ph-muted">Belum ada balasan.</p>';
+      } catch { th.innerHTML = '<p class="ph-muted">Balasan belum bisa dimuat.</p>'; }
+    }
+  });
+  const closePhone = () => { if (!open) return; open = false; root.hidden = true; clearInterval(clk); onClose && onClose(); };
+  let clk = 0;
+  const openPhone = () => { if (open) return; open = true; hist = []; view = { n: 'home' }; root.hidden = false; onOpen && onOpen(); render(); clk = setInterval(() => { clock(); if (view.n === 'home') renderHome(); }, 20000); };
+  root.querySelector('.ph-x').onclick = closePhone;
+  root.addEventListener('pointerdown', e => { if (e.target === root) closePhone(); });                 // ketuk di luar HP = tutup
+  root.querySelector('.ph-nav').onclick = () => (view.n === 'home' ? closePhone() : home());          // tombol/gesture beranda
+  return { open: openPhone, close: closePhone, toggle: () => (open ? closePhone() : openPhone()), isOpen: () => open };
+}

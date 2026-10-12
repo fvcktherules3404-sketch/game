@@ -1,7 +1,9 @@
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN } from './shop.js';
+import { initPhone } from './phone.js?v=20261011d';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
+let phone = { isOpen: () => false, close() { }, toggle() { } };   // diganti initPhone() setelah keys/joystick siap
 /* ---------- audio (WebAudio, tanpa file) ---------- */
 let ac = null;
 function beep(type) {
@@ -446,7 +448,8 @@ setFP(fp);
 $('#bView').addEventListener('click', () => { setFP(!fp); beep('step'); });
 addEventListener('keydown', e => { if (!paused && (e.key === 'v' || e.key === 'V')) setFP(!fp); });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if ($('#say')) closeSay(); else if (panelOpen()) closePanel(); return; }
+  if (e.key === 'Escape') { if (phone.isOpen()) phone.close(); else if ($('#say')) closeSay(); else if (panelOpen()) closePanel(); return; }
+  if ((e.key === 'p' || e.key === 'P') && started && !panelOpen() && !$('#say')) { phone.toggle(); return; }
   if (paused) return; const k = e.key.toLowerCase();
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
   if (k === 'e' || k === 'enter') { interact(); return; } keys[k] = true;
@@ -589,6 +592,8 @@ function play() {
   $('#intro').hidden = true; $('#hud').hidden = false; started = true; paused = false; beep('door'); setMute(muted);
   if (!localStorage.getItem('fvckgame.seen')) { localStorage.setItem('fvckgame.seen', '1'); say('SELAMAT DATANG', document.body.classList.contains('is-touch') ? 'Joystick = jalan, geser layar = putar kamera, E = ambil baju dari hanger. KASIR ▸ = langsung ke kasir.' : 'WASD = jalan, geser mouse = putar kamera, E = ambil baju dari hanger. KASIR ▸ = langsung ke kasir.'); }
 }
+phone = initPhone({ onOpen: () => { paused = true; for (const k in keys) keys[k] = false; jx = jy = 0; closeSay(); if (panelOpen()) closePanel(); }, onClose: () => { paused = !started; } });
+$('#bPhone').onclick = () => { if (started && !panelOpen()) phone.toggle(); };
 $('#bPlay').onclick = play; $('#bHow').onclick = () => showRaw('HOW TO PLAY', howHTML);
 $('#bQuick').onclick = () => openCatalog('all');
 $('#bMenu').onclick = () => showRaw('MENU', `${howHTML}<div class="foot">${hasReceipt() ? '<button id="mRec">STRUK TERAKHIR</button>' : ''}<a class="btn" href="${MAIN_ORIGIN}/">KEMBALI KE TOKO UTAMA</a></div>`);
