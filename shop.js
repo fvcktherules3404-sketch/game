@@ -38,7 +38,7 @@ export async function initShop(onUpdate) {
       S.products = list.map(p => ({
         id: p.id, name: p.nama || '', price: p.harga, priceN: digits(p.harga), badge: (p.badge || '').toLowerCase(),
         status: p.status || '', colors: p.warna ? p.warna.split('/').map(c => c.trim()).filter(Boolean) : [],
-        stock: p.stok ? p.stok.split('/').map(s => s.trim()) : [], thumb: p.thumbnail || '', details: p.details || [],
+        stock: p.stok ? p.stok.split('/').map(s => s.trim()) : [], thumb: p.thumbnail || '', design: p.desain || '', details: p.details || [],
         specs: p.specs || '', dpAllowed: p.dpAllowed || 'yes', kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0
       })).filter(p => ['pre', 'ready', 'sold'].includes(p.badge)).sort((a, b) => b.order - a.order);
       S.status = 'ok'; notify(onUpdate);

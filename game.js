@@ -1,5 +1,5 @@
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js';
-import { initPhone } from './phone.js?v=20261012a';
+import { initPhone } from './phone.js?v=20261012b';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
@@ -133,6 +133,7 @@ const SC = 1.3, TW = 256, TH = 512, TAGW = 192;
 let hGroups = [], hl = null, hSig = '', HGEO = null, photoBusy = 0, lastHot = null;
 const PH = {}, plainM = {};                           // PH[url] = { cut, bx, by, bw, bh } | null (gagal)
 const FAB_UV = [224 / TW, 1 - 288 / TH];
+const PRINT_W = .28, PRINT_TOP = -.15, PRINT_MAXH = .40, AR = {};   // desain cetak baku: lebar 28 cm, tepi atas 15 cm di bawah kerah (1 satuan = 1 m); AR[url] = Image artwork
 const frontUV = (x, y) => { const s = Math.max(.004, Math.min(.996, (x + .44) / .88)), tt = Math.max(.004, Math.min(.996, (y + .74) / .74)); return [s, 1 - (1 - tt) * .5]; };
 function buildHGeo() {
   const P = [], N = [], U = [], C = [], I = []; let off = 0;
@@ -173,15 +174,20 @@ function drawTag(c, p) {
   const words = String(p.name || '').toUpperCase().split(/\s+/); const lines = []; let cur = '';
   words.forEach(wd => { if (c.measureText((cur + ' ' + wd).trim()).width > W - 16 && cur) { lines.push(cur); cur = wd; } else cur = (cur + ' ' + wd).trim(); }); if (cur) lines.push(cur);
   lines.slice(0, 3).forEach((l, i) => c.fillText(l, W / 2, 66 + i * 30));
-  c.font = 'bold 30px monospace'; c.fillText(rp(p.priceN), W / 2, W - 14);
+  c.font = 'bold 25px monospace'; c.fillText(rp(p.priceN), W / 2, W - 14);
+}
+function drawArtwork(c, im) {                          // PNG transparan desain cetak -> dada tengah, rasio asli dipertahankan
+  const ar = im.naturalHeight / im.naturalWidth; let w = PRINT_W, h = w * ar; if (h > PRINT_MAXH) { h = PRINT_MAXH; w = h / ar; }
+  c.drawImage(im, (.44 - w / 2) / .88 * TW, (1 - (PRINT_TOP + .74) / .74) * 256, w / .88 * TW, h / .74 * 256);
 }
 function drawFull(o) {
-  const c = o.cv.getContext('2d'); c.fillStyle = o.hex; c.fillRect(0, 0, TW, TH);
-  const ph = PH[o.h.p.thumb]; if (ph) c.drawImage(ph.cut, ph.bx, ph.by, ph.bw, ph.bh, 0, 0, TW, TW);   // desain asli kaos
-  c.save(); c.translate(0, 256); drawTag(c, o.h.p); c.restore(); o.full.map.needsUpdate = true;
+  const c = o.cv.getContext('2d'), p = o.h.p; c.setTransform(o.k, 0, 0, o.k, 0, 0); c.fillStyle = o.hex; c.fillRect(0, 0, TW, TH);
+  if (p.design) { const im = AR[p.design]; if (im) drawArtwork(c, im); }                                        // gambar desain dari admin (pas & seragam)
+  else { const ph = PH[p.thumb]; if (ph) c.drawImage(ph.cut, ph.bx, ph.by, ph.bw, ph.bh, 0, 0, TW, TW); }       // cadangan: foto produk tanpa latar
+  c.save(); c.translate(0, 256); drawTag(c, p); c.restore(); o.full.map.needsUpdate = true;
 }
 function makeFull(o) {
-  o.cv = document.createElement('canvas'); o.cv.width = TW; o.cv.height = TH;
+  o.k = o.h.p.design ? 2 : 1; o.cv = document.createElement('canvas'); o.cv.width = TW * o.k; o.cv.height = TH * o.k;   // desain cetak: kanvas 2x agar tajam
   const t = new THREE.CanvasTexture(o.cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   o.full = new THREE.MeshLambertMaterial({ map: t, vertexColors: true, side: THREE.DoubleSide }); o.m.material = o.full; drawFull(o);
 }
@@ -206,13 +212,14 @@ function makeCut(im) {
   } catch (e) { return whole; }                      // CORS / canvas tainted → foto utuh
 }
 function loadPhoto(o) {
-  const u = o.h.p.thumb; if (!u || o.ph) return; o.ph = 1;
-  if (PH[u] !== undefined) { if (PH[u]) drawFull(o); return; }
+  const p = o.h.p, d = p.design, u = d || p.thumb; if (!u || o.ph) return; o.ph = 1;
+  const cache = d ? AR : PH;
+  if (cache[u] !== undefined) { if (cache[u]) drawFull(o); return; }
   if (photoBusy >= 2) { o.ph = 0; return; }
-  photoBusy++; PH[u] = null; const im = new Image(); im.crossOrigin = 'anonymous';
-  im.onload = () => { photoBusy--; PH[u] = makeCut(im); hGroups.forEach(q => { if (q.h.p.thumb === u && q.full) drawFull(q); }); };
+  photoBusy++; cache[u] = null; const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => { photoBusy--; cache[u] = d ? im : makeCut(im); hGroups.forEach(q => { if ((q.h.p.design || q.h.p.thumb) === u && q.full) drawFull(q); }); };
   im.onerror = () => { photoBusy--; };
-  im.src = u.includes('/upload/') ? u.replace('/upload/', '/upload/w_256,c_limit,q_auto/') : u;
+  im.src = u.includes('/upload/') ? u.replace('/upload/', d ? '/upload/w_700,c_limit/' : '/upload/w_256,c_limit,q_auto/') : u;
 }
 function photoTick() {                                // hanya ~12 hanger terdekat yang punya tekstur desain (hemat memori)
   const list = hGroups.map(o => ({ o, d: Math.hypot(pl.x - o.h.x, pl.z - o.h.z) })).sort((a, b) => a.d - b.d); let made = 0;
@@ -224,7 +231,7 @@ function photoTick() {                                // hanya ~12 hanger terdek
 
 function syncHangers() {
   if (!renderer) return;
-  const sig = hangers.map(h => h.p.id + '|' + h.p.name + '|' + ((h.p.colors || [])[0] || '') + '|' + h.p.priceN + '|' + h.p.thumb + '|' + h.x + ',' + h.z).join(';') + '#' + rails.length;
+  const sig = hangers.map(h => h.p.id + '|' + h.p.name + '|' + ((h.p.colors || [])[0] || '') + '|' + h.p.priceN + '|' + h.p.thumb + '|' + h.p.design + '|' + h.x + ',' + h.z).join(';') + '#' + rails.length;
   if (sig === hSig) return; hSig = sig;
   if (!HGEO) HGEO = buildHGeo();
   hGroups.forEach(o => { scene.remove(o.g); if (o.full) dropFull(o); }); hGroups = [];
@@ -239,7 +246,7 @@ function syncHangers() {
   hangers.forEach((h, i) => {
     const hex = colorOf(h.p), g = new THREE.Group(); g.position.set(h.x, 1.98, h.z); g.rotation.y = h.ry; g.scale.setScalar(SC);
     const m = new THREE.Mesh(HGEO, plainMat(hex)); m.position.y = -.2; m.castShadow = Q > 1; g.add(m); scene.add(g);
-    hGroups.push({ g, m, h, i, hex, ph: 0, full: null, cv: null });
+    hGroups.push({ g, m, h, i, hex, ph: 0, full: null, cv: null, k: 1 });
   });
   lastHot = null;
 }

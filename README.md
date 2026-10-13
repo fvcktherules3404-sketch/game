@@ -78,3 +78,8 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Syarat: situs tujuan boleh di-embed (tidak mengirim header `X-Frame-Options` / CSP `frame-ancestors`). GitHub Pages tidak memblokirnya secara default. Jika halaman tidak tampil, setelah 8 detik muncul saran "Buka di tab baru".
 - Selama browser HP aktif, game berhenti menggambar 3D (hemat baterai/GPU) dan lanjut lagi saat kembali ke aplikasi HP/menutup HP.
 - Menu ☰ → "Kembali ke toko utama" dan pintu toko tetap keluar ke web utama (sengaja).
+
+## Gambar desain kaos (field `desain`)
+- Admin web utama (patch: admin.html + admin.js) punya kolom baru **GAMBAR DESAIN UNTUK GAME 3D** di form produk → disimpan ke dokumen `produk.desain` (URL Cloudinary).
+- Game menempelkannya di dada tengah, ukuran baku: lebar 28 cm (maks. tinggi 40 cm), tepi atas 15 cm di bawah kerah, rasio asli dipertahankan, di atas warna kain dari kolom `warna`. Kanvas 2x agar tajam. Dimuat hanya untuk hanger terdekat.
+- Format: PNG/WebP transparan, desain cetak saja (tanpa gambar kaos), lebar ±1200 px. Jika kolom kosong, game memakai foto produk tanpa latar (cara lama).
