@@ -164,3 +164,27 @@ label.f{font-size:13px;font-weight:600;color:var(--ink);display:block;margin:8px
 .ph-wl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;font-size:13px;color:var(--ink2);pointer-events:none}
 .ph-spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .8s linear infinite}
 .ph-hint{position:absolute;left:10px;right:10px;bottom:10px;background:var(--ink);color:var(--cream);border-radius:14px;padding:10px 12px;font-size:12px;line-height:1.45;box-shadow:0 6px 18px rgba(0,0,0,.3)}.ph-hint button{display:inline;text-decoration:underline;font-weight:700}
+
+/* aplikasi pesanan di HP */
+.ph-form{padding:12px 12px 0}.ph-search{display:flex;gap:8px}
+.ph-search input{flex:1;min-width:0;margin:0;min-height:46px;border-radius:999px;padding:0 16px;font-size:14px}
+.ph-go{flex:none;padding:0 20px;border-radius:999px;background:var(--ink);color:var(--cream);font-weight:600;font-size:14px;display:flex;align-items:center}
+.ph-err{color:var(--red);font-size:12px;min-height:16px;margin:4px 6px 0}
+.ph-res{padding:6px 12px 22px;display:grid;gap:10px}
+.ph-detail{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:14px}
+.ph-cap{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ph-kode{margin:6px 0 10px;font-size:20px;font-weight:700;letter-spacing:.06em;word-break:break-all;user-select:all}.ph-art-n{margin:0 0 8px;font-size:13px;font-weight:600}
+.ph-kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0}.ph-kv span{opacity:.7}.ph-kv b{text-align:right;word-break:break-word}.ph-kv.big{font-size:16px}
+.ph-hr{border-top:1.5px dashed var(--line);margin:8px 0}
+.ph-resi{border:1.5px solid var(--ink);border-radius:14px;padding:12px;margin:0 0 12px;background:var(--cream)}.ph-resi b{display:block;margin:6px 0 4px;font-size:18px;letter-spacing:.06em;word-break:break-all;user-select:all}.ph-resi p{margin:0 0 8px;font-size:12px;color:var(--ink2);line-height:1.5}
+.ph-row2{display:flex;gap:8px}.ph-row2 .ph-btn2{margin:0;flex:1;padding:11px 8px;font-size:13px}
+.ph-note{margin:0;padding:11px 13px;background:#fff;border-left:5px solid var(--sun);border-radius:12px;font-size:12.5px;line-height:1.5;color:var(--ink2)}.ph-ok{margin:8px 0 0;font-weight:700}
+.ph-tl{margin-top:14px;padding-top:12px;border-top:1.5px dashed var(--line)}.ph-tl>b{display:block;margin-bottom:10px;font-size:14px}
+.ph-step{display:flex;gap:12px;position:relative;padding-bottom:16px}.ph-step i{width:12px;height:12px;border-radius:50%;background:var(--ink);flex:none;margin-top:4px}.ph-step:not(.last)::before{content:"";position:absolute;left:5px;top:18px;bottom:0;width:2px;background:var(--line)}.ph-step strong{display:block;font-size:13px;line-height:1.4;word-break:break-word}.ph-step time{font-size:11px;color:var(--muted)}
+.ph-pick{display:block;width:100%;background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:12px 14px;text-align:left}.ph-pick b{display:block;font-size:14px;letter-spacing:.04em}.ph-pick span{font-size:12.5px;color:var(--ink2)}.ph-pick em{font-style:normal;font-size:10px;font-weight:700;background:var(--mint);border:1.5px solid var(--ink);border-radius:999px;padding:1px 8px;margin-left:8px}
+.ph-link{padding:4px 6px;font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px;justify-self:start}
+.ph-acc{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}.ph-acc span{width:64px;color:var(--muted);font-weight:600}.ph-acc b{flex:1;letter-spacing:.04em;word-break:break-all}
+.ph-mini{padding:6px 12px;border-radius:999px;background:var(--soft);font-size:12px;font-weight:600}
+.ph-qris{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:12px;margin-top:8px;background:#fff}
+.ph-upload{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0 4px;min-height:84px;border:2px dashed var(--line);border-radius:14px;font-size:13px;color:var(--ink2);text-align:center;padding:10px;cursor:pointer}
+.ph-detail .ph-btn2{margin:10px 0 0;width:100%}.ph-btn2:disabled{opacity:.45}

@@ -81,5 +81,10 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 
 ## Gambar desain kaos (field `desain`)
 - Admin web utama (patch: admin.html + admin.js) punya kolom baru **GAMBAR DESAIN UNTUK GAME 3D** di form produk → disimpan ke dokumen `produk.desain` (URL Cloudinary).
-- Game menempelkannya di dada tengah, ukuran baku: lebar 28 cm (maks. tinggi 40 cm), tepi atas 15 cm di bawah kerah, rasio asli dipertahankan, di atas warna kain dari kolom `warna`. Kanvas 2x agar tajam. Dimuat hanya untuk hanger terdekat.
+- Game menempelkannya di dada tengah, ukuran baku: lebar 28 cm (maks. tinggi 40 cm), tepi atas 13 cm di bawah tepi atas kerah, rasio asli dipertahankan, di atas warna kain dari kolom `warna`. Kanvas 2x agar tajam. Dimuat hanya untuk hanger terdekat.
 - Format: PNG/WebP transparan, desain cetak saja (tanpa gambar kaos), lebar ±1200 px. Jika kolom kosong, game memakai foto produk tanpa latar (cara lama).
+
+## Aplikasi pesanan di HP: Lacak, Cek Resi, Pelunasan
+- Memakai fungsi yang sama dengan web utama lewat `S.fb` (firebase.js live): `cariLacak`, `getTimeline`, `getPoUpdates`, `cariResi`, `cariPelunasan`, `uploadGambar(file,'bukti')`, `kirimBuktiPelunasan`. Input satu kolom: ID order / email / no. HP (klasifikasi sama dengan `klasifikasiPantau`).
+- **Lacak**: detail pesanan + kotak resi + timeline (termasuk update per artikel PO). **Cek Resi**: nomor resi, tombol salin, dan "Lacak di J&T" (resi otomatis tersalin, J&T dibuka di browser mini HP). **Pelunasan**: ringkasan total/DP/sisa, rekening (PAY di shop.js) + QRIS, upload bukti → status "menunggu verifikasi".
+- Data pelanggan hanya terbaca lewat pencarian (index hash di web utama) — aturan keamanan tidak diubah.

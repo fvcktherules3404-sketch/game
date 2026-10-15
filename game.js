@@ -1,5 +1,5 @@
 import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js';
-import { initPhone } from './phone.js?v=20261012b';
+import { initPhone } from './phone.js?v=20261012c';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
@@ -133,7 +133,7 @@ const SC = 1.3, TW = 256, TH = 512, TAGW = 192;
 let hGroups = [], hl = null, hSig = '', HGEO = null, photoBusy = 0, lastHot = null;
 const PH = {}, plainM = {};                           // PH[url] = { cut, bx, by, bw, bh } | null (gagal)
 const FAB_UV = [224 / TW, 1 - 288 / TH];
-const PRINT_W = .28, PRINT_TOP = -.15, PRINT_MAXH = .40, AR = {};   // desain cetak baku: lebar 28 cm, tepi atas 15 cm di bawah kerah (1 satuan = 1 m); AR[url] = Image artwork
+const PRINT_W = .28, PRINT_TOP = -.15, PRINT_MAXH = .40, AR = {};   // desain cetak baku: lebar 28 cm, tepi atas 13 cm di bawah tepi atas kerah (1 satuan = 1 m); AR[url] = Image artwork
 const frontUV = (x, y) => { const s = Math.max(.004, Math.min(.996, (x + .44) / .88)), tt = Math.max(.004, Math.min(.996, (y + .74) / .74)); return [s, 1 - (1 - tt) * .5]; };
 function buildHGeo() {
   const P = [], N = [], U = [], C = [], I = []; let off = 0;
