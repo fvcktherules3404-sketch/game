@@ -95,3 +95,8 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Di game: meja kayu + papan **AKSESORIS** di dinding kiri, di samping kaca (antara papan SOCCER CULTURE dan poster 26). Dekati lalu E → katalog filter AKSESORIS. Foto thumbnail aksesoris dipajang berdiri di atas meja (maks. 8; yang sold out di urutan akhir dan digelapkan).
 - Aksesoris juga muncul di KATALOG (SEMUA / PRE ORDER / READY STOCK / ARSIP) dan chip **AKSESORIS**. Di tas & struk tidak ada teks warna/ukuran. Di order, item aksesoris memakai `warna:'-'`, `size:'-'`, `jenis:'aksesoris'`.
 - Urutan deploy: **web utama dulu** (firebase.js baru + firestore.rules baru), baru game (game memanggil `firebase.js?v=20261030`).
+
+## Aksesoris BESAR (menempel di tembok)
+- Admin web utama → Aksesoris → centang **BESAR** (field `besar: true` di dokumen `aksesoris`). Dibaca game sebagai `big`.
+- Tidak dicentang (default) = seperti sebelumnya: kecil, berbingkai, berdiri di atas meja (maks. 8).
+- Dicentang = foto dipasang **besar menempel di dinding kiri tepat di atas meja AKSESORIS** (di bawah papan nama), seperti syal/scarf, **tanpa bingkai**. Pakai PNG transparan supaya hanya gambarnya yang tampak. Rasio asli dipertahankan (maks. 0,95 m tinggi), maks. 4 buah berjajar; sold out di urutan akhir dan digelapkan. Foto dimuat Cloudinary lebar 768 px.

@@ -1,5 +1,5 @@
-import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261030';
-import { initPhone } from './phone.js?v=20261030';
+import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261031';
+import { initPhone } from './phone.js?v=20261031';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
@@ -439,20 +439,22 @@ function rebuild() {
 S.listeners.add(rebuild); rebuild();
 /* ---------- meja AKSESORIS: foto thumbnail tiap aksesoris dipajang berdiri (maks. 8; yang sold out paling belakang & gelap) ---------- */
 const accImg = {}; let accShared = null;
-function accPhoto(url, mat) {                           // foto dimuat sekali per URL (Cloudinary w_320), dipakai ulang antar-rebuild
-  if (!url) return; const u = url.includes('/upload/') ? url.replace('/upload/', '/upload/w_320,c_limit,q_auto/') : url;
+function accPhoto(url, mat, w = 320, cb) {              // foto dimuat sekali per URL (Cloudinary w_<w>), dipakai ulang antar-rebuild
+  if (!url) return; const u = url.includes('/upload/') ? url.replace('/upload/', `/upload/w_${w},c_limit,q_auto/`) : url;
   let e = accImg[u];
   if (!e) {
-    e = accImg[u] = { tex: null, mats: [] };
+    e = accImg[u] = { tex: null, mats: [], cbs: [] };
     const ld = new THREE.TextureLoader(); ld.setCrossOrigin('anonymous');
-    ld.load(u, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; e.tex = t; e.mats.forEach(m => { m.map = t; m.color.set(m.userData.tint); m.needsUpdate = true; }); e.mats = []; }, undefined, () => { });
+    ld.load(u, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; e.tex = t; e.mats.forEach(m => { m.map = t; m.color.set(m.userData.tint); m.needsUpdate = true; }); e.cbs.forEach(f => f(t)); e.mats = []; e.cbs = []; }, undefined, () => { });
   }
-  if (e.tex) { mat.map = e.tex; mat.color.set(mat.userData.tint); mat.needsUpdate = true; } else e.mats.push(mat);
+  if (e.tex) { mat.map = e.tex; mat.color.set(mat.userData.tint); mat.needsUpdate = true; if (cb) cb(e.tex); } else { e.mats.push(mat); if (cb) e.cbs.push(cb); }
 }
 function syncAcc() {
   if (!renderer || !accG) return;
-  const list = S.acc.filter(p => p.badge !== 'sold').concat(S.acc.filter(p => p.badge === 'sold')).slice(0, 8);
-  const sig = list.map(p => p.id + '|' + p.thumb + '|' + p.badge).join(';'); if (sig === accSig) return; accSig = sig;
+  const urut = l => l.filter(p => p.badge !== 'sold').concat(l.filter(p => p.badge === 'sold'));   // sold out paling belakang
+  const list = urut(S.acc.filter(p => !p.big)).slice(0, 8);      // kecil: berdiri di atas meja, berbingkai
+  const wall = urut(S.acc.filter(p => p.big)).slice(0, 4);       // besar: menempel di tembok di atas meja (seperti syal), tanpa bingkai
+  const sig = list.map(p => p.id + '|' + p.thumb + '|' + p.badge).join(';') + '#' + wall.map(p => p.id + '|' + p.thumb + '|' + p.badge).join(';'); if (sig === accSig) return; accSig = sig;
   if (!accShared) accShared = { plane: new THREE.PlaneGeometry(1, 1), box: new THREE.BoxGeometry(1, 1, 1), dark: M({ color: 0x151515, roughness: .8 }) };
   accG.traverse(o => { if (o.isMesh && o.material !== accShared.dark) o.material.dispose(); }); accG.clear();
   const AX = -7.68, AZ = 1.85, TOP = .835, RISER = .09;
@@ -467,6 +469,18 @@ function syncAcc() {
     const pm = new THREE.Mesh(accShared.plane, ph); pm.scale.set(sz, sz, 1); pm.position.set(0, sz / 2, .009); t.add(pm); accPhoto(p.thumb, ph);
     accG.add(g);
   }));
+  /* BESAR: menempel di tembok kiri tepat di atas meja (di bawah papan nama), tanpa bingkai. PNG transparan -> hanya gambarnya yang terlihat.
+     Rasio asli dipertahankan, muat di kotak slot (maks. 0,95 m tinggi); diatur kiri->kanan (z mengecil), terpusat di atas meja. */
+  const WX = -7.9, WY = 1.62, WH = .95, SPAN = 1.8, slot = Math.min(.72, SPAN / Math.max(1, wall.length));
+  wall.forEach((p, j) => {
+    const m = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, alphaTest: .03 }); m.userData.tint = p.badge === 'sold' ? 0x7a7a7a : 0xffffff;
+    const mesh = new THREE.Mesh(accShared.plane, m); mesh.visible = false;                         // tersembunyi sampai foto selesai dimuat (rasio belum diketahui)
+    mesh.rotation.y = Math.PI / 2; mesh.position.set(WX, WY, AZ + ((wall.length - 1) / 2 - j) * slot); mesh.receiveShadow = true; accG.add(mesh);
+    accPhoto(p.thumb, m, 768, t => {
+      const iw = (t.image && (t.image.naturalWidth || t.image.width)) || 1, ih = (t.image && (t.image.naturalHeight || t.image.height)) || 1;
+      const k = Math.min((slot * .94) / iw, WH / ih); mesh.scale.set(iw * k, ih * k, 1); mesh.visible = true;
+    });
+  });
 }
 S.listeners.add(syncAcc);
 const SPOTS = [
