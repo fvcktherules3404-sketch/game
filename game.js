@@ -1,5 +1,5 @@
-import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261016';
-import { initPhone } from './phone.js?v=20261016';
+import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261030';
+import { initPhone } from './phone.js?v=20261030';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
@@ -272,7 +272,7 @@ function animHuman(h, w, moving) {
 }
 
 /* ---------- dunia 3D: toko, fasad kaca, jalan, properti ---------- */
-let mirrorG = null, MIRI = 1;
+let mirrorG = null, MIRI = 1, accG = null, accSig = '';
 const MIR = [[-6, -5.96, 0, -6, -4.7], [-7.96, 4.7, Math.PI / 2, -6.8, 4.9], [7.96, 4.7, -Math.PI / 2, 6.9, 4.7]];   // x, z, rotasi, titik interaksi x, z
 function placeMirror(i) { const m = MIR[i]; mirrorG.position.set(m[0], 1.3, m[1]); mirrorG.rotation.y = m[2]; const s = SPOTS.find(q => q.id === 'mirror'); if (s) { s.x = m[3]; s.z = m[4]; } try { localStorage.setItem('fvckgame.mir2', String(i)); } catch { } }
 function moveMirror() { MIRI = (MIRI + 1) % MIR.length; placeMirror(MIRI); toast('CERMIN DIPINDAH'); beep('step'); }
@@ -370,6 +370,17 @@ function buildWorld() {
   bx(1.9, .06, .42, woodM, -4.6, .46, 4.7, { cs: true }); [-.8, .8].forEach(x => bx(.06, .43, .36, metal, -4.6 + x, .215, 4.7, { cs: true }));
   const cardM = M({ map: T.card, roughness: .95 });
   [[7.05, .25, 3.1, .8, .5, .8, 0], [7.05, .7, 3.1, .7, .4, .7, .2], [7.05, 1.05, 3.1, .5, .3, .5, -.1], [-7.35, .25, 3.8, .8, .5, .8, .1], [-7.3, .7, 3.85, .6, .4, .6, .35]].forEach(([x, y, z, w, h, d, ry]) => bx(w, h, d, cardM, x, y, z, { ry, cs: true }));
+  /* meja AKSESORIS: dinding kiri, di samping kaca depan (antara papan SOCCER CULTURE dan poster 26) */
+  { const sAks = lab(512, 112, (c, w, h) => { c.font = '900 56px Impact, sans-serif'; c.fillText('AKSESORIS', w / 2, h / 2 + 20); });
+    const AX = -7.68, AZ = 1.85, AL = 1.3, AD = .6, AH = .8;
+    bx(AD, .07, AL, woodM, AX, AH, AZ, { cs: true });                                               // papan meja
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => bx(.05, AH - .04, .05, metal, AX + a * (AD / 2 - .05), (AH - .04) / 2, AZ + b * (AL / 2 - .05), { cs: true }));
+    bx(AD - .1, .03, AL - .1, metal, AX, .22, AZ, { cs: true });                                   // rak bawah
+    bx(.08, .5, AL + .02, black, AX - AD / 2 + .01, AH + .29, AZ);                                  // papan belakang kecil di atas meja
+    const w = 1.4, h = w * 112 / 512, sx = -7.92, sy = 2.3;                                         // papan nama di dinding, tepat di atas meja
+    bx(.08, h + .1, w, black, sx + .04 * Math.sign(sx), sy, AZ);
+    pln(w, h, glow(sAks), sx - Math.sign(sx) * .012, sy, AZ, Math.PI / 2); }
+  accG = new THREE.Group(); scene.add(accG);                                                        // isi meja (foto aksesoris), diisi syncAcc()
   /* kasir */
   bx(3.2, 1.05, .9, black, 5, .525, 3.5, { cs: true }); bx(3.3, .06, 1, white, 5, 1.08, 3.5, { cs: true }); bx(3, .14, .02, new THREE.MeshBasicMaterial({ color: 0xe8ff3a }), 5, .5, 3.96, { rs: false });
   scrCv = document.createElement('canvas'); scrCv.width = 256; scrCv.height = 160; scrTex = new THREE.CanvasTexture(scrCv); scrTex.colorSpace = THREE.SRGBColorSpace;
@@ -409,7 +420,7 @@ const RW = 7.5, RZN = -5.6, RZP = 5.6;
 let hangers = [], rails = [], solids = [];
 const SP = .8, ROW = 1.9;   // jarak antar hanger & antar baris (kaos diperbesar 1.3x)
 const GROUPS = [{ k: 'pre', x: -7.15, z: -4.5, dx: 0, dz: 1, ry: Math.PI / 2, ix: 1, iz: 0, max: 8 }, { k: 'ready', x: 7.15, z: -4.5, dx: 0, dz: 1, ry: -Math.PI / 2, ix: -1, iz: 0, max: 8 }, { k: 'sold', x: -3.4, z: -3.6, dx: 1, dz: 0, ry: 0, ix: 0, iz: 1, max: 10, rg: 1.4 }];
-const STATIC_SOLIDS = [[-1.3, -.65, 1.3, .65], [3.4, 2, 6.6, 3.95], [6.6, 2.2, 7.5, 3.95], [-5.6, 4.45, -3.6, 4.95], [-7.75, 3.35, -6.85, 4.25]];
+const STATIC_SOLIDS = [[-1.3, -.65, 1.3, .65], [3.4, 2, 6.6, 3.95], [6.6, 2.2, 7.5, 3.95], [-5.6, 4.45, -3.6, 4.95], [-7.75, 3.35, -6.85, 4.25], [-8, 1.2, -7.38, 2.5]];   // yang terakhir: meja AKSESORIS (dinding kiri, di samping kaca)
 function rebuild() {
   hangers = []; rails = []; solids = STATIC_SOLIDS.slice();
   GROUPS.forEach(g => {
@@ -426,11 +437,44 @@ function rebuild() {
   try { syncHangers(); } catch (e) { showErr(e); }
 }
 S.listeners.add(rebuild); rebuild();
+/* ---------- meja AKSESORIS: foto thumbnail tiap aksesoris dipajang berdiri (maks. 8; yang sold out paling belakang & gelap) ---------- */
+const accImg = {}; let accShared = null;
+function accPhoto(url, mat) {                           // foto dimuat sekali per URL (Cloudinary w_320), dipakai ulang antar-rebuild
+  if (!url) return; const u = url.includes('/upload/') ? url.replace('/upload/', '/upload/w_320,c_limit,q_auto/') : url;
+  let e = accImg[u];
+  if (!e) {
+    e = accImg[u] = { tex: null, mats: [] };
+    const ld = new THREE.TextureLoader(); ld.setCrossOrigin('anonymous');
+    ld.load(u, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; e.tex = t; e.mats.forEach(m => { m.map = t; m.color.set(m.userData.tint); m.needsUpdate = true; }); e.mats = []; }, undefined, () => { });
+  }
+  if (e.tex) { mat.map = e.tex; mat.color.set(mat.userData.tint); mat.needsUpdate = true; } else e.mats.push(mat);
+}
+function syncAcc() {
+  if (!renderer || !accG) return;
+  const list = S.acc.filter(p => p.badge !== 'sold').concat(S.acc.filter(p => p.badge === 'sold')).slice(0, 8);
+  const sig = list.map(p => p.id + '|' + p.thumb + '|' + p.badge).join(';'); if (sig === accSig) return; accSig = sig;
+  if (!accShared) accShared = { plane: new THREE.PlaneGeometry(1, 1), box: new THREE.BoxGeometry(1, 1, 1), dark: M({ color: 0x151515, roughness: .8 }) };
+  accG.traverse(o => { if (o.isMesh && o.material !== accShared.dark) o.material.dispose(); }); accG.clear();
+  const AX = -7.68, AZ = 1.85, TOP = .835, RISER = .09;
+  const riser = new THREE.Mesh(accShared.box, accShared.dark); riser.scale.set(.24, RISER, 1.28); riser.position.set(AX - .16, TOP + RISER / 2, AZ); riser.receiveShadow = true; accG.add(riser);
+  const rows = [list.slice(0, 4), list.slice(4, 8)];
+  rows.forEach((row, ri) => row.forEach((p, j) => {
+    const sz = ri === 0 ? .3 : .22, x = ri === 0 ? AX - .16 : AX + .1, y = ri === 0 ? TOP + RISER : TOP, z = AZ + (j - (row.length - 1) / 2) * (ri === 0 ? .32 : .3);
+    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.PI / 2;
+    const t = new THREE.Group(); t.rotation.x = -.16; t.position.y = .015; g.add(t);                // bersandar ke belakang (ke arah dinding)
+    const fr = new THREE.Mesh(accShared.box, accShared.dark); fr.scale.set(sz + .03, sz + .03, .014); fr.position.y = sz / 2; fr.castShadow = true; t.add(fr);
+    const ph = new THREE.MeshLambertMaterial({ color: 0xcfc8b8 }); ph.userData.tint = p.badge === 'sold' ? 0x7a7a7a : 0xffffff;
+    const pm = new THREE.Mesh(accShared.plane, ph); pm.scale.set(sz, sz, 1); pm.position.set(0, sz / 2, .009); t.add(pm); accPhoto(p.thumb, ph);
+    accG.add(g);
+  }));
+}
+S.listeners.add(syncAcc);
 const SPOTS = [
   { id: 'table', x: 0, z: 0, lim: 2.0, t: 'PRESS E TO BROWSE · SEMUA PRODUK', go: () => openCatalog('all') },
   { id: 'kasir', x: 5, z: 4.5, lim: 2.0, t: 'PRESS E TO CHECKOUT', go: cashier },
   { id: 'board', x: 5.0, z: -4.9, lim: 1.8, t: 'PRESS E TO READ · PAPAN DROP', go: board },
   { id: 'door', x: 0, z: 5.1, lim: 1.5, t: 'PRESS E · KELUAR KE TOKO UTAMA', go: door },
+  { id: 'aksesoris', x: -6.7, z: 1.85, lim: 1.5, t: 'PRESS E · MEJA AKSESORIS', go: () => openCatalog('acc') },
   { id: 'ball', x: 0, z: 0, lim: 1.3, t: 'PRESS E · TENDANG BOLA', go: kick },
   { id: 'mirror', x: -6, z: -4.7, lim: 1.4, t: 'PRESS E · CERMIN', go: () => say('CERMIN', 'Outfit check. Rules? Dilanggar.', [['PINDAH CERMIN', moveMirror], ['TUTUP']]) }
 ];
@@ -587,7 +631,7 @@ function frame(ts) {
   }
 }
 if (renderer) {
-  try { buildWorld(); syncHangers(); resize(); requestAnimationFrame(frame); } catch (e) { showErr(e); renderer = null; }
+  try { buildWorld(); syncHangers(); syncAcc(); resize(); requestAnimationFrame(frame); } catch (e) { showErr(e); renderer = null; }
 }
 
 /* ---------- alur layar ---------- */
@@ -595,6 +639,7 @@ const howHTML = `<div class="note"><b>DESKTOP</b><br>WASD = jalan · geser mouse
 <div class="note"><b>MOBILE</b><br>Joystick kiri bawah = jalan · geser layar = putar kamera · tombol E (atau tap tulisan "TAP …") = interaksi · tombol TPV/FPV di atas = ganti sudut pandang.</div>
 <div class="note"><b>MISI</b><br>1) Dekati hanger, tekan E, pilih warna & ukuran, ADD TO CART.<br>2) Jalan ke KASIR (atau tekan tombol KASIR ▸ di atas = lompat langsung).<br>3) Isi data kirim, bayar via QRIS / transfer, upload bukti, dapat struk + ID pesanan.</div>
 <div class="note">Cuma mau belanja cepat? Tombol <b>KATALOG</b> membuka semua produk tanpa jalan-jalan. Harga & stok selalu dari toko utama.</div>
+<div class="note">Aksesoris ada di <b>meja AKSESORIS</b> (dinding kiri, di samping kaca). Dekati meja lalu tekan E. Aksesoris juga ada di KATALOG → chip AKSESORIS.</div>
 <div class="note">Coba tendang bola di lantai. Cari papan drop di dinding belakang.</div>`;
 function play() {
   $('#intro').hidden = true; $('#hud').hidden = false; started = true; paused = false; beep('door'); setMute(muted);
@@ -618,7 +663,7 @@ bindUI({
 const load = $('#loadState');
 initShop(st => {
   load.className = 'load ' + (st === 'ok' ? 'ok' : st === 'error' ? 'err' : '');
-  load.querySelector('span').textContent = st === 'ok' ? `${S.products.length} produk siap` : st === 'error' ? 'Katalog gagal dimuat — coba muat ulang. Atau belanja di toko utama.' : 'Memuat katalog…';
+  load.querySelector('span').textContent = st === 'ok' ? `${S.products.length} produk${S.acc.length ? ' + ' + S.acc.length + ' aksesoris' : ''} siap` : st === 'error' ? 'Katalog gagal dimuat — coba muat ulang. Atau belanja di toko utama.' : 'Memuat katalog…';
 }).then(() => { $('#cartN').textContent = cartCount(); });
 $('#cartN').textContent = cartCount();
 if (location.search.includes('debug')) window.__g = { pl, cam, ball };

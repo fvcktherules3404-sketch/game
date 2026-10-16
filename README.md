@@ -88,3 +88,10 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Memakai fungsi yang sama dengan web utama lewat `S.fb` (firebase.js live): `cariLacak`, `getTimeline`, `getPoUpdates`, `cariResi`, `cariPelunasan`, `uploadGambar(file,'bukti')`, `kirimBuktiPelunasan`. Input satu kolom: ID order / email / no. HP (klasifikasi sama dengan `klasifikasiPantau`).
 - **Lacak**: detail pesanan + kotak resi + timeline (termasuk update per artikel PO). **Cek Resi**: nomor resi, tombol salin, dan "Lacak di J&T" (resi otomatis tersalin, J&T dibuka di browser mini HP). **Pelunasan**: ringkasan total/DP/sisa, rekening (PAY di shop.js) + QRIS, upload bukti → status "menunggu verifikasi".
 - Data pelanggan hanya terbaca lewat pencarian (index hash di web utama) — aturan keamanan tidak diubah.
+
+## Aksesoris (meja AKSESORIS)
+- Data dari koleksi Firestore `aksesoris` (diisi admin di web utama → menu **Aksesoris**), dibaca lewat `listenAksesoris` di firebase.js web utama. Bentuknya sama dengan produk, tanpa warna/ukuran/tambahan/desain. Pre Order / Ready / Sold Out jadi satu daftar.
+- Stok aksesoris = satu dokumen di koleksi `stok` (ID `stokIdAks`), jadi checkout game memakai `kurangiStok` yang sama dan order yang ditolak admin mengembalikan stoknya otomatis. Tanpa dokumen stok = tidak dibatasi.
+- Di game: meja kayu + papan **AKSESORIS** di dinding kiri, di samping kaca (antara papan SOCCER CULTURE dan poster 26). Dekati lalu E → katalog filter AKSESORIS. Foto thumbnail aksesoris dipajang berdiri di atas meja (maks. 8; yang sold out di urutan akhir dan digelapkan).
+- Aksesoris juga muncul di KATALOG (SEMUA / PRE ORDER / READY STOCK / ARSIP) dan chip **AKSESORIS**. Di tas & struk tidak ada teks warna/ukuran. Di order, item aksesoris memakai `warna:'-'`, `size:'-'`, `jenis:'aksesoris'`.
+- Urutan deploy: **web utama dulu** (firebase.js baru + firestore.rules baru), baru game (game memanggil `firebase.js?v=20261030`).
