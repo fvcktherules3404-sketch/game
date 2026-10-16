@@ -188,3 +188,25 @@ label.f{font-size:13px;font-weight:600;color:var(--ink);display:block;margin:8px
 .ph-qris{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:12px;margin-top:8px;background:#fff}
 .ph-upload{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0 4px;min-height:84px;border:2px dashed var(--line);border-radius:14px;font-size:13px;color:var(--ink2);text-align:center;padding:10px;cursor:pointer}
 .ph-detail .ph-btn2{margin:10px 0 0;width:100%}.ph-btn2:disabled{opacity:.45}
+
+/* ---------- detail produk: disamakan dengan web utama ---------- */
+.lbl{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.chips.colors{gap:10px}
+.chips.colors .chip{border-radius:999px;padding:10px 22px;font-size:14px;border:1.5px solid transparent;box-shadow:0 1px 0 rgba(14,17,22,.08)}
+.chips.colors .chip.on{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+.chips.sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.chips.sizes .chip{min-width:0;padding:12px 6px;font-size:15px;border-radius:12px;background:transparent;border:1.5px solid var(--line)}
+.chips.sizes .chip.on{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+.chip:disabled{text-decoration:line-through;opacity:1;color:rgba(14,17,22,.35);border-color:var(--soft);cursor:not-allowed}
+.stokinfo{margin-top:12px;font-size:15px;font-weight:700;min-height:1.2em}
+.stokinfo.tipis,.stokinfo.habis{color:var(--red)}
+.addons{display:grid;grid-template-columns:1fr;gap:10px}
+.chip.addon{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;border-radius:12px;padding:12px 14px;background:transparent;border:1.5px solid var(--line)}
+.chip.addon b{font-weight:700;white-space:nowrap;opacity:.75}.chip.addon.on b{opacity:1}
+.chip.addon.on{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+.guide{display:inline-block;margin-top:22px;background:none;border:0;border-radius:0;padding:0;min-height:0;text-decoration:underline;font-size:14px;text-transform:none}
+.guide:hover{background:none;opacity:.6}
+.specs{background:rgba(255,255,255,.6);border-radius:18px;padding:16px 18px;margin-top:22px}
+.specs-t{font-size:13.5px;line-height:1.7;color:var(--ink2)}
+.specs-t b,.specs-t strong{font-weight:700;color:var(--ink)}
+.specs-t ul,.specs-t ol{margin:6px 0;padding-left:20px}

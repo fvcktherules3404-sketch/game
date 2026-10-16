@@ -1,5 +1,5 @@
-import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js';
-import { initPhone } from './phone.js?v=20261012c';
+import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261016';
+import { initPhone } from './phone.js?v=20261016';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;

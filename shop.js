@@ -1,7 +1,7 @@
 // shop.js — katalog, tas, checkout, kasir. Memakai firebase.js milik website utama (saveOrder, listenProduk, voucher, auth).
 // TIDAK ada katalog/harga/ID order buatan sendiri: semua dari Firestore project fvcktherules-store.
 export const MAIN_ORIGIN = 'https://fucktherules.my.id';
-const FB_URL = MAIN_ORIGIN + '/firebase.js?v=20261013';          // modul yang sama dengan website utama (satu sumber kebenaran)
+const FB_URL = MAIN_ORIGIN + '/firebase.js?v=20261025';          // modul yang sama dengan website utama (satu sumber kebenaran)
 const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbyoVdbvq1JvCtzWFbJaZUdTO2I30DXn4N0p_XOidk98cPnj8m22j2Aa0q6k90KH4sOhUw/exec';
 const GAS_BITESHIP = 'https://script.google.com/macros/s/AKfycbyDTEPvP5yndja35U02nkC4lsYRy3vQqVe2s4NTx-MxBE8MCSB9co2ztG5ZDMtJzuAO/exec';
 const WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/v2';
@@ -11,8 +11,30 @@ const SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 const CART_KEY = 'fvckgame.cart.v1', LAST_KEY = 'fvckgame.lastReceipt.v1';
 
 export const S = { products: [], status: 'loading', fb: null, user: null, cart: [], listeners: new Set() };
+let stokMap = {}, stokPids = {};      // stok per varian (warna+ukuran) dari koleksi "stok" toko utama
+let view = '';                        // tampilan panel saat ini ('product' = detail produk)
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const rp = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+// Keterangan produk dari admin berisi HTML sederhana (<b>, <br>, dst). Tampilkan sebagai format, tapi buang tag/atribut berbahaya.
+const RICH_OK = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'UL', 'OL', 'LI', 'SPAN', 'SMALL', 'DIV', 'A']);
+const RICH_DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META', 'FORM', 'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'SVG', 'MATH']);
+export function rich(src) {
+  const html = String(src ?? '').replace(/\\n|\n/g, '<br>');
+  const doc = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html');
+  (function walk(node) {
+    [...node.childNodes].forEach(ch => {
+      if (ch.nodeType === 3) return;
+      if (ch.nodeType !== 1) { ch.remove(); return; }
+      if (RICH_DROP.has(ch.tagName.toUpperCase())) { ch.remove(); return; }
+      walk(ch);
+      if (!RICH_OK.has(ch.tagName)) { ch.replaceWith(...ch.childNodes); return; }
+      const href = ch.tagName === 'A' ? ch.getAttribute('href') : null;
+      [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
+      if (href && /^https?:\/\//i.test(href)) { ch.setAttribute('href', href); ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener noreferrer'); }
+    });
+  })(doc.body);
+  return doc.body.innerHTML;
+}
 const digits = v => Number(String(v ?? '').replace(/\D/g, '')) || 0;
 const $ = (s, r = document) => r.querySelector(s);
 
@@ -22,7 +44,7 @@ export function bindUI(x) { ui = { ...ui, ...x }; }
 const P = { el: $('#panel'), body: $('#pBody'), title: $('#pTitle'), back: $('#pBack'), backFn: null };
 function show(title, html, backFn) {
   P.el.hidden = false; P.title.textContent = title; P.body.innerHTML = html; P.body.scrollTop = 0;
-  P.backFn = backFn || null; P.back.hidden = !backFn; ui.onChange(true);
+  P.backFn = backFn || null; P.back.hidden = !backFn; view = ''; ui.onChange(true);
 }
 export function closePanel() { P.el.hidden = true; ui.onChange(false); }
 export const panelOpen = () => !P.el.hidden;
@@ -39,22 +61,38 @@ export async function initShop(onUpdate) {
         id: p.id, name: p.nama || '', price: p.harga, priceN: digits(p.harga), badge: (p.badge || '').toLowerCase(),
         status: p.status || '', colors: p.warna ? p.warna.split('/').map(c => c.trim()).filter(Boolean) : [],
         stock: p.stok ? p.stok.split('/').map(s => s.trim()) : [], thumb: p.thumbnail || '', design: p.desain || '', details: p.details || [],
-        specs: p.specs || '', dpAllowed: p.dpAllowed || 'yes', kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0
+        specs: p.specs || '', addons: Array.isArray(p.tambahan) ? p.tambahan.filter(a => a && a.nama).map(a => ({ nama: String(a.nama), harga: Number(a.harga) || 0 })) : [], dpAllowed: p.dpAllowed || 'yes', kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0
       })).filter(p => ['pre', 'ready', 'sold'].includes(p.badge)).sort((a, b) => b.order - a.order);
       S.status = 'ok'; notify(onUpdate);
     }, err => { console.error(err); S.status = 'error'; notify(onUpdate); });
+    if (S.fb.listenStok) S.fb.listenStok(docs => {
+      stokMap = {}; stokPids = {};
+      docs.forEach(d => { stokMap[d.id] = Number(d.qty) || 0; if (d.pid) stokPids[d.pid] = true; });
+      notify(onUpdate);
+      if (view === 'product' && !P.el.hidden && sel.pid) openProduct(sel.pid, P.backFn);
+    });
     S.fb.onAuthStateChanged(S.fb.auth, u => { S.user = u; });
   } catch (e) { console.error('Gagal memuat firebase.js utama', e); S.status = 'error'; notify(onUpdate); }
 }
 function notify(cb) { cb && cb(S.status); S.listeners.forEach(f => f()); }
 const byId = id => S.products.find(p => p.id === id);
-export const orderable = p => !!p && (p.badge === 'pre' || p.badge === 'ready') && !p.poClosed && p.colors.length > 0 && p.stock.length > 0;
+const stokTracked = p => !!(p && stokPids[p.id]);
+const stokQty = (p, color, size) => Number(stokMap[S.fb.stokId(p.id, color, size)]) || 0;
+const stokTotal = (p, color) => SIZES.reduce((n, sz) => n + (color ? stokQty(p, color, sz) : p.colors.reduce((a, c) => a + stokQty(p, c, sz), 0)), 0);
+const sizeOk = (p, color, size) => !stokTracked(p) ? p.stock.includes(size) : (color ? stokQty(p, color, size) > 0 : p.colors.some(c => stokQty(p, c, size) > 0));
+const warnaOk = (p, color) => !stokTracked(p) || SIZES.some(sz => stokQty(p, color, sz) > 0);
+// tambahan opsional (lengan panjang, bundling, dst): pilihan disimpan sebagai daftar nama
+const addonsOf = (p, names) => (names || []).map(n => (p.addons || []).find(a => a.nama === n)).filter(Boolean);
+const unitPrice = (p, names) => p.priceN + addonsOf(p, names).reduce((n, a) => n + a.harga, 0);
+const addonText = (p, names) => addonsOf(p, names).map(a => a.nama).join(', ');
+const addonKey = names => [...(names || [])].sort().join('|');
+export const orderable = p => !!p && (p.badge === 'pre' || p.badge === 'ready') && !p.poClosed && p.colors.length > 0 && p.stock.length > 0 && !(stokTracked(p) && stokTotal(p) <= 0);
 const stateMsg = () => S.status === 'loading' ? '<div class="msg">Memuat katalog dari toko utama…</div>'
   : S.status === 'error' ? `<div class="msg err">Gagal memuat katalog (koneksi / Firebase). Coba muat ulang, atau buka <a href="${MAIN_ORIGIN}" style="color:inherit">toko utama</a>.</div>`
   : !S.products.length ? '<div class="msg">Belum ada produk di katalog.</div>' : '';
 
 /* ---------- Keranjang ---------- */
-function loadCart() { try { const c = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); S.cart = Array.isArray(c) ? c.filter(i => i && i.pid && i.color && i.size && i.qty > 0).slice(0, 50) : []; } catch { S.cart = []; } }
+function loadCart() { try { const c = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); S.cart = Array.isArray(c) ? c.filter(i => i && i.pid && i.color && i.size && i.qty > 0).map(i => ({ ...i, addons: Array.isArray(i.addons) ? i.addons : [] })).slice(0, 50) : []; } catch { S.cart = []; } }
 function saveCart() { try { localStorage.setItem(CART_KEY, JSON.stringify(S.cart)); } catch {} ui.onCart(cartCount()); }
 export const cartCount = () => S.cart.reduce((n, i) => n + i.qty, 0);
 // Validasi tiap baris terhadap data katalog TERBARU (harga selalu dari Firestore, bukan dari localStorage)
@@ -65,16 +103,21 @@ function lines() {
     else if (!p) err = 'Produk sudah tidak ada';
     else if (!orderable(p)) err = p.poClosed ? 'Pre Order ditutup' : 'Tidak tersedia';
     else if (!p.colors.includes(i.color)) err = 'Warna tidak tersedia';
-    else if (!p.stock.includes(i.size)) err = 'Ukuran habis';
-    return { ...i, p, err, sub: p && !err ? p.priceN * i.qty : 0 };
+    else if (!sizeOk(p, i.color, i.size) || (stokTracked(p) && stokQty(p, i.color, i.size) <= 0)) err = 'Ukuran habis';
+    else if (stokTracked(p) && i.qty > stokQty(p, i.color, i.size)) err = `Stok tinggal ${stokQty(p, i.color, i.size)}`;
+    const unit = p ? unitPrice(p, i.addons) : 0;
+    return { ...i, p, err, unit, sub: p && !err ? unit * i.qty : 0 };
   });
 }
 const subtotal = () => lines().reduce((n, l) => n + l.sub, 0);
-export function addToCart(pid, color, size, qty) {
+export function addToCart(pid, color, size, qty, addons = []) {
   const p = byId(pid);
-  if (!orderable(p) || !p.colors.includes(color) || !p.stock.includes(size)) return false;
-  const ex = S.cart.find(i => i.pid === pid && i.color === color && i.size === size);
-  if (ex) ex.qty = Math.min(20, ex.qty + qty); else S.cart.push({ pid, color, size, qty });
+  if (!orderable(p) || !p.colors.includes(color) || !sizeOk(p, color, size)) return false;
+  const ak = addonKey(addons);
+  const ex = S.cart.find(i => i.pid === pid && i.color === color && i.size === size && addonKey(i.addons) === ak);
+  const sudah = S.cart.filter(i => i.pid === pid && i.color === color && i.size === size).reduce((n, i) => n + i.qty, 0);
+  if (stokTracked(p) && sudah + qty > stokQty(p, color, size)) return 'stok';
+  if (ex) ex.qty = Math.min(20, ex.qty + qty); else S.cart.push({ pid, color, size, qty, addons: addonsOf(p, addons).map(a => a.nama) });
   saveCart(); return true;
 }
 
@@ -89,29 +132,47 @@ export function openCatalog(f = 'all') {
   show('KATALOG', `<div class="chips" style="margin-bottom:12px">${tabs}</div>${stateMsg() || (list.length ? `<div class="grid">${grid}</div>` : '<div class="msg">Tidak ada produk di rak ini.</div>')}
     <div class="foot"><button class="pri" data-act="cart">TAS BELANJA (${cartCount()})</button></div>`);
 }
-let sel = { pid: '', color: '', size: '', qty: 1 };
+let sel = { pid: '', color: '', size: '', qty: 1, addons: [] };
+function stokInfoText(p) {
+  if (!stokTracked(p)) return '';
+  const q = (sel.color && sel.size) ? stokQty(p, sel.color, sel.size) : stokTotal(p, sel.color);
+  const lb = (sel.color && sel.size) ? 'Stok' : (sel.color ? `Stok ${sel.color}` : 'Total stok');
+  return `<div class="stokinfo ${q <= 0 ? 'habis' : q <= 5 ? 'tipis' : ''}">${esc(q <= 0 ? `${lb}: habis` : `${lb}: ${q}${q <= 5 ? ' · tinggal sedikit!' : ''}`)}</div>`;
+}
 export function openProduct(pid, back = () => openCatalog()) {
   const p = byId(pid); if (!p) return openCatalog();
-  if (sel.pid !== pid) sel = { pid, color: p.colors.length === 1 ? p.colors[0] : '', size: '', qty: 1 };
+  const lanjut = view === 'product' && sel.pid === pid;           // render ulang (pilih opsi / stok berubah): jangan lompat ke atas
+  const keep = lanjut ? P.body.scrollTop : 0;
+  if (sel.pid !== pid) sel = { pid, color: p.colors.length === 1 ? p.colors[0] : '', size: '', qty: 1, addons: [] };
+  if (sel.color && !warnaOk(p, sel.color)) sel.color = '';
+  if (sel.size && !sizeOk(p, sel.color, sel.size)) sel.size = '';
+  sel.addons = sel.addons.filter(n => (p.addons || []).some(a => a.nama === n));
   const ok = orderable(p);
   const imgs = (p.details.length ? p.details : [p.thumb]).map(u => `<img src="${esc(u)}" alt="${esc(p.name)}" loading="lazy">`).join('');
-  const colors = p.colors.map(c => `<button class="chip ${sel.color === c ? 'on' : ''}" data-act="color" data-v="${esc(c)}">${esc(c)}</button>`).join('');
-  const sizes = SIZES.map(s => { const a = p.stock.includes(s); return `<button class="chip ${sel.size === s ? 'on' : ''}" ${a ? '' : 'disabled'} data-act="size" data-v="${s}">${s}</button>`; }).join('');
-  const why = ok ? '' : `<div class="msg err">${p.badge === 'sold' ? 'Produk ini sudah habis (arsip).' : p.poClosed ? 'Pre Order sudah ditutup.' : 'Stok/varian belum tersedia.'}</div>`;
-  show(p.name.toUpperCase(), `<div class="slot">${imgs}</div><h2>${esc(p.name)}</h2><div class="price">${esc(rp(p.priceN))} <small style="color:var(--g3);font-size:12px">${esc(p.status)}</small></div>
-    ${why}${ok ? `<div class="lbl">WARNA</div><div class="chips">${colors}</div><div class="lbl">UKURAN (hanya yang tersedia)</div><div class="chips">${sizes}</div>
+  const colors = p.colors.map(c => { const a = warnaOk(p, c); return `<button class="chip ${sel.color === c ? 'on' : ''}" ${a ? '' : 'disabled'} data-act="color" data-v="${esc(c)}">${esc(c)}</button>`; }).join('');
+  const sizes = SIZES.map(s => { const a = sizeOk(p, sel.color, s); return `<button class="chip ${sel.size === s ? 'on' : ''}" ${a ? '' : 'disabled'} data-act="size" data-v="${s}">${s}</button>`; }).join('');
+  const adds = (p.addons || []).map((a, i) => `<button class="chip addon ${sel.addons.includes(a.nama) ? 'on' : ''}" data-act="addon" data-v="${i}"><span>${esc(a.nama)}</span><b>+${esc(rp(a.harga))}</b></button>`).join('');
+  const why = ok ? '' : `<div class="msg err">${p.badge === 'sold' ? 'Produk ini sudah habis (arsip).' : p.poClosed ? 'Pre Order sudah ditutup.' : (stokTracked(p) && stokTotal(p) <= 0) ? 'Stok habis.' : 'Stok/varian belum tersedia.'}</div>`;
+  show(p.name.toUpperCase(), `<div class="slot">${imgs}</div><h2>${esc(p.name)}</h2><div class="price">${esc(rp(unitPrice(p, sel.addons)))} <small style="color:var(--g3);font-size:12px">${esc(p.status)}</small></div>
+    ${why}${ok ? `<div class="lbl">PILIH WARNA</div><div class="chips colors">${colors}</div>
+    <div class="lbl">PILIH UKURAN</div><div class="chips sizes">${sizes}</div>${stokInfoText(p)}
+    ${adds ? `<div class="lbl">TAMBAHAN (OPSIONAL)</div><div class="addons">${adds}</div>` : ''}
+    <button class="guide" data-act="guide">Panduan ukuran (Size Guide)</button>
     <div class="lbl">JUMLAH</div><div class="qty"><button data-act="qty" data-v="-1">−</button><b id="qv">${sel.qty}</b><button data-act="qty" data-v="1">+</button></div>
     <div class="err-t" id="perr"></div><div class="foot"><button class="accent" data-act="add">ADD TO CART</button></div>` : ''}
-    <div class="specs">${esc(p.specs).replace(/\\n|\n/g, '<br>')}</div>`, back);
-  P.body.dataset.pid = pid; P.backFn = back;
+    <div class="specs"><div class="lbl" style="margin-top:0">SPESIFIKASI PRODUK</div><div class="specs-t">${p.specs ? rich(p.specs) : 'Spesifikasi belum tersedia.'}</div></div>`, back);
+  P.body.dataset.pid = pid; P.backFn = back; view = 'product'; P.body.scrollTop = keep;
+}
+function openSizeGuide() {
+  show('PANDUAN UKURAN', `<img src="${MAIN_ORIGIN}/size.jpg" alt="Panduan ukuran" style="width:100%;border-radius:18px;background:#fff;display:block">`, () => openProduct(sel.pid, P.backFn));
 }
 
 /* ---------- Tas ---------- */
 export function openCart() {
   const L = lines();
   const body = !L.length ? '<div class="msg">Tas masih kosong. Ambil kaos dari rak.</div>' : L.map((l, i) => `<div class="line">
-    <img src="${esc(l.p?.thumb || '')}" alt=""><div class="m"><b>${esc(l.p?.name || 'Produk dihapus')}</b><small>${esc(l.color)} | ${esc(l.size)}</small>
-    ${l.err ? `<small style="color:var(--red)">${esc(l.err)}</small>` : `<small>${rp(l.p.priceN)} × ${l.qty} = ${rp(l.sub)}</small>`}</div>
+    <img src="${esc(l.p?.thumb || '')}" alt=""><div class="m"><b>${esc(l.p?.name || 'Produk dihapus')}</b><small>${esc(l.color)} | ${esc(l.size)}${l.p ? esc(addonText(l.p, l.addons) ? ' + ' + addonText(l.p, l.addons) : '') : ''}</small>
+    ${l.err ? `<small style="color:var(--red)">${esc(l.err)}</small>` : `<small>${rp(l.unit)} × ${l.qty} = ${rp(l.sub)}</small>`}</div>
     <div class="qty"><button data-act="cq" data-i="${i}" data-v="-1">−</button><b>${l.qty}</b><button data-act="cq" data-i="${i}" data-v="1">+</button></div>
     <button data-act="cdel" data-i="${i}" aria-label="Hapus">✕</button></div>`).join('');
   const bad = L.some(l => l.err);
@@ -156,7 +217,7 @@ export function openCheckout() {
 }
 function renderSum() {
   const c = calc(); const el = $('#sum'); if (!el) return;
-  el.innerHTML = lines().map(l => `<div class="row"><span>${esc(l.p?.name)} (${esc(l.color)}|${esc(l.size)}) ×${l.qty}</span><span>${rp(l.sub)}</span></div>`).join('') +
+  el.innerHTML = lines().map(l => `<div class="row"><span>${esc(l.p?.name)} (${esc(l.color)}|${esc(l.size)}${l.p ? esc(addonText(l.p, l.addons) ? ' + ' + addonText(l.p, l.addons) : '') : ''}) ×${l.qty}</span><span>${rp(l.sub)}</span></div>`).join('') +
     `<div class="row"><span>Subtotal</span><span>${rp(c.sub)}</span></div><div class="row"><span>Ongkir (J&amp;T)</span><span>${c.ongkir ? rp(c.ongkir) : '—'}</span></div>` +
     (co.voucher ? `<div class="row"><span>Voucher ${esc(co.voucher.kode)}</span><span>− ${rp(c.d)}</span></div>` : '') + `<div class="row tot"><span>TOTAL</span><span>${rp(c.total)}</span></div>`;
 }
@@ -242,18 +303,28 @@ async function submit() {
   co.busy = true; const btn = $('#bSubmit'); btn.disabled = true; btn.textContent = 'MENGIRIM…'; pe.textContent = '';
   try {
     const f = co.f, L = lines(), c = calc();
-    const flat = L.flatMap(l => Array.from({ length: l.qty }, () => ({ nama: l.p.name, warna: l.color, size: l.size, harga: l.p.price })));   // format sama: 1 entri per pcs
+    const flat = L.flatMap(l => Array.from({ length: l.qty }, () => ({ nama: l.p.name, warna: l.color, size: l.size, harga: l.unit, tambahan: addonText(l.p, l.addons) })));   // format sama: 1 entri per pcs
     const pre = L.filter(l => l.p.badge === 'pre');
     const orderData = {
       nama: f.nama.trim(), wa: f.wa.trim(), email: f.email.trim(), customerUid: S.user?.uid || null,
       alamat: `${f.alamat.trim()}, ${f.kel}, Kec. ${f.kec}, ${f.kota}, ${f.prov} ${f.zip}`,
-      produk: flat, produkText: flat.map(i => `${i.nama} (${i.warna}|${i.size})`).join(', '),
+      produk: flat, produkText: flat.map(i => `${i.nama} (${i.warna}|${i.size}${i.tambahan ? ' + ' + i.tambahan : ''})`).join(', '),
       hargaKaos: c.sub, ongkir: c.ongkir, voucherKode: co.voucher?.kode || '', voucherDeskripsi: voucherDesc(), totalAkhir: c.total,
       tipeBayar: 'Cek Bukti Bayar', dp: '', buktiURL: co.bukti, dpEligible: L.some(l => l.p.dpAllowed !== 'no'),
       kodePrefix: (pre.find(l => l.p.kodePrefix) || L.find(l => l.p.kodePrefix) || { p: {} }).p.kodePrefix || '',
       isPO: pre.length > 0, poIds: [...new Set(pre.map(l => l.p.id))], poNames: [...new Set(pre.map(l => l.p.name))],
       sumber: 'game'                                      // penanda tambahan; tidak dipakai logika toko utama
     };
+    // Potong stok varian (atomik) sebelum order disimpan, sama seperti toko utama
+    const dilacak = L.filter(l => stokTracked(l.p));
+    if (dilacak.length && S.fb.kurangiStok) {
+      try { orderData.stokItems = await S.fb.kurangiStok(dilacak.flatMap(l => Array.from({ length: l.qty }, () => ({ pid: l.p.id, warna: l.color, size: l.size })))); }
+      catch (e) {
+        if (e && e.code === 'STOK_HABIS') { const h = e.habis[0]; co.busy = false; btn.disabled = false; btn.textContent = 'KIRIM PESANAN';
+          pe.textContent = h.sisa > 0 ? `Stok ${h.warna} ${h.size} tinggal ${h.sisa}. Ubah jumlah di tas dulu.` : `${h.warna} ${h.size} baru saja habis. Hapus dari tas dulu.`; return; }
+        throw e;
+      }
+    }
     const id = await S.fb.saveOrder(orderData);           // fungsi asli toko utama: ID FVCK-XXXXXX, lacak, indeks
     if (!id) throw new Error('saveOrder null');
     if (co.voucher) { try { await S.fb.updateVoucherKuota(co.voucher.id, co.voucher.kuota - 1); } catch {} }
@@ -269,7 +340,7 @@ export function openReceipt(r = JSON.parse(localStorage.getItem(LAST_KEY) || 'nu
   if (!r) { ui.toast('Belum ada struk.'); return; }
   show('STRUK PESANAN', `<div class="receipt"><h3>FVCKTHERULES</h3><div style="text-align:center;font-size:11px">BORN TO DISOBEY</div><div class="id" id="rid">${esc(r.kode)}</div>
     <div style="text-align:center;font-size:11px">ID PESANAN — simpan untuk Pantau Pesanan</div><hr>
-    ${r.items.map(i => `<div class="row"><span>${esc(i.nama)} (${esc(i.warna)}|${esc(i.size)})</span><span>${esc(i.harga)}</span></div>`).join('')}<hr>
+    ${r.items.map(i => `<div class="row"><span>${esc(i.nama)} (${esc(i.warna)}|${esc(i.size)}${i.tambahan ? esc(' + ' + i.tambahan) : ''})</span><span>${esc(String(i.harga).startsWith('Rp') ? i.harga : rp(digits(i.harga)))}</span></div>`).join('')}<hr>
     <div class="row"><span>Subtotal</span><span>${rp(r.sub)}</span></div><div class="row"><span>Ongkir</span><span>${rp(r.ongkir)}</span></div>${r.d ? `<div class="row"><span>Voucher</span><span>− ${rp(r.d)}</span></div>` : ''}
     <div class="row tot"><span>TOTAL BAYAR</span><span>${rp(r.total)}</span></div><div class="row"><span>STATUS</span><b>MENUNGGU VERIFIKASI ADMIN</b></div></div>
     <div class="note" style="margin-top:20px">Admin akan mengecek bukti bayarmu. Lacak pesanan dengan ID di atas lewat menu <b>Cek Pesanan</b> di toko utama. Jika DP, pelunasan juga lewat toko utama.</div>
@@ -283,11 +354,14 @@ P.body.addEventListener('click', async e => {
   if (a === 'cat') openCatalog(v);
   else if (a === 'prod') openProduct(v);
   else if (a === 'color') { sel.color = v; openProduct(sel.pid, P.backFn); }
+  else if (a === 'addon') { const ad = byId(sel.pid)?.addons[Number(v)]; if (ad) { const k = sel.addons.indexOf(ad.nama); if (k >= 0) sel.addons.splice(k, 1); else sel.addons.push(ad.nama); openProduct(sel.pid, P.backFn); } }
+  else if (a === 'guide') openSizeGuide();
   else if (a === 'size') { sel.size = v; openProduct(sel.pid, P.backFn); }
   else if (a === 'qty') { sel.qty = Math.max(1, Math.min(20, sel.qty + Number(v))); $('#qv').textContent = sel.qty; }
   else if (a === 'add') { if (!sel.color) return ($('#perr').textContent = 'Pilih warna dulu.'); if (!sel.size) return ($('#perr').textContent = 'Pilih ukuran dulu.');
-    if (addToCart(sel.pid, sel.color, sel.size, sel.qty)) { ui.beep('add'); ui.toast(`✓ Masuk tas: ${byId(sel.pid).name} (${sel.color}|${sel.size}) ×${sel.qty}`); sel.qty = 1; openProduct(sel.pid, P.backFn); }
-    else $('#perr').textContent = 'Varian tidak tersedia.'; }
+    const r = addToCart(sel.pid, sel.color, sel.size, sel.qty, sel.addons);
+    if (r === true) { ui.beep('add'); ui.toast(`✓ Masuk tas: ${byId(sel.pid).name} (${sel.color}|${sel.size}) ×${sel.qty}`); sel.qty = 1; sel.addons = []; openProduct(sel.pid, P.backFn); }
+    else $('#perr').textContent = r === 'stok' ? `Stok tidak cukup (tersedia ${stokQty(byId(sel.pid), sel.color, sel.size)}, termasuk yang sudah di tas).` : 'Varian tidak tersedia.'; }
   else if (a === 'cart') openCart();
   else if (a === 'cq') { const it = S.cart[i]; if (it) { it.qty = Math.max(1, Math.min(20, it.qty + Number(v))); saveCart(); openCart(); } }
   else if (a === 'cdel') { S.cart.splice(i, 1); saveCart(); openCart(); }
