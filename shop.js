@@ -71,7 +71,7 @@ export async function initShop(onUpdate) {
     if (S.fb.listenAksesoris) S.fb.listenAksesoris(list => {
       S.acc = list.map(p => ({
         id: p.id, acc: true, name: p.nama || '', price: p.harga, priceN: digits(p.harga), badge: (p.badge || '').toLowerCase(),
-        status: p.status || '', colors: [AKS], stock: [AKS], thumb: p.thumbnail || '', design: '', details: p.details || [],
+        status: p.status || '', colors: [AKS], stock: [AKS], thumb: p.thumbnail || '', design: p.desain || '', details: p.details || [],
         specs: p.specs || '', addons: [], dpAllowed: p.dpAllowed || 'yes', kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0, big: !!p.besar   // big = tampil besar menempel di tembok (game 3D), tanpa bingkai
       })).filter(p => ['pre', 'ready', 'sold'].includes(p.badge)).sort((a, b) => b.order - a.order);
       notify(onUpdate); if (view === 'product' && !P.el.hidden && sel.pid) openProduct(sel.pid, P.backFn);

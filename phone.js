@@ -1,6 +1,6 @@
 // phone.js — "HP" di dalam game: Berita & Diskusi diambil dari Firebase JURNAL (fvck-journal) milik web utama.
 // Hanya BACA (read-only), memakai query yang sama persis dengan journal.js di web utama. Membalas/bereaksi tetap lewat web utama.
-import { S, PAY, rp, MAIN_ORIGIN } from './shop.js?v=20261031';
+import { S, PAY, rp, MAIN_ORIGIN } from './shop.js?v=20261032';
 
 const JOURNAL_URL = 'https://jurnal-fucktherules.my.id', MAIN_URL = 'https://fucktherules.my.id/';
 const FS_URL = 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';   // sama dengan versi di firebase.js web utama
