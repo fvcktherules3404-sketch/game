@@ -533,7 +533,13 @@ let lid = null, lx = 0, ly = 0;                                  // geser layar/
 cv.addEventListener('pointerdown', e => { if (paused) return; lid = e.pointerId; lx = e.clientX; ly = e.clientY; cv.setPointerCapture(lid); });
 cv.addEventListener('pointermove', e => { if (e.pointerId !== lid) return; cam.yaw += (e.clientX - lx) * .006; cam.pitch = Math.max(fp ? -1.25 : -.4, Math.min(fp ? 1.25 : .8, cam.pitch - (e.clientY - ly) * .004)); lx = e.clientX; ly = e.clientY; });
 const lEnd = e => { if (e.pointerId === lid) lid = null; }; cv.addEventListener('pointerup', lEnd); cv.addEventListener('pointercancel', lEnd);
-$('#bAct').addEventListener('pointerdown', e => { e.preventDefault(); interact(); });
+// Tap di tombol aksi/prompt memicu interact() saat pointerdown (panel langsung terbuka). Browser lalu tetap mengirim
+// 'click' dari tap yang sama ke elemen yang kini ada di bawah jari (mis. kartu produk / tombol "Masuk tas") = seolah double klik.
+// Jadi click susulan dari tap itu dibuang selama 450 ms.
+let tapGuard = 0;
+document.addEventListener('click', e => { if (performance.now() < tapGuard) { e.stopPropagation(); e.preventDefault(); } }, true);
+const tapAct = e => { e.preventDefault(); tapGuard = performance.now() + 450; interact(); };
+$('#bAct').addEventListener('pointerdown', tapAct);
 if (matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window) document.body.classList.add('is-touch');
 
 let hot = null;
@@ -544,7 +550,7 @@ function nearest() {
   return best;
 }
 function interact() { if (paused || $('#say')) return closeSay(); const s = nearest(); if (s) s.go(); }
-$('#prompt').addEventListener('pointerdown', e => { e.preventDefault(); interact(); });
+$('#prompt').addEventListener('pointerdown', tapAct);
 
 function update(dt) {
   if (!paused) {
