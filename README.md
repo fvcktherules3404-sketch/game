@@ -2,29 +2,40 @@
 
 Frontend tambahan (HTML/CSS/JS murni, tanpa build) untuk toko utama. **Tidak ada katalog, harga, atau sistem order sendiri.**
 Game memuat `https://fucktherules.my.id/firebase.js` (modul yang sama dengan toko utama) dan memakai fungsinya langsung:
-`listenProduk`, `saveOrder` (ID `PREFIX-XXXXXX`, dokumen `lacak`, indeks `lacakIdx`), `getVoucherByKode`, `updateVoucherKuota`, `uploadGambar`, `customerSignIn`.
+`listenProduk`, `saveOrder` (ID `PREFIX-XXXXXX`, dokumen `lacak`, indeks `lacakIdx`), `getVoucherByKode`, `updateVoucherKuota`, `getPaymentSettings`, `hitungMinDP`, `customerSignIn`. Pembayaran lewat API Midtrans web utama (lihat bagian *Pembayaran Midtrans*).
 
 ## Struktur
 ```
-CNAME  .nojekyll  index.html  style.css  game.js (3D: Three.js r160 dari CDN jsDelivr/unpkg, kamera TPV/FPV, toko + fasad kaca + jalan, hanger, kasir)  shop.js (katalog, tas, checkout, kasir)
-assets/qris.jpg (cadangan; utama memakai /qris.jpg dari toko utama)  assets/favicon.png
+CNAME  .nojekyll  index.html  style.css  game.js (3D: Three.js r160 dari CDN jsDelivr/unpkg, kamera TPV/FPV, toko + fasad kaca + jalan, hanger, kasir)  shop.js (katalog, tas, checkout, layar bayar, struk)  pay.js (Midtrans Snap)  phone.js (HP: Berita, Diskusi, Lacak, Cek Resi, Pelunasan)
+assets/favicon.png  assets/logo.png  assets/mural.png
 ```
-Tidak ada file toko utama yang diubah. CNAME toko utama tetap `fucktherules.my.id`.
+Satu perubahan di repo toko utama: `payment-worker/wrangler.toml` (`ALLOWED_ORIGINS` + `https://game.fucktherules.my.id`, supaya API pembayaran menerima panggilan dari game). CNAME toko utama tetap `fucktherules.my.id`.
 
 ## Audit singkat toko utama (hasil baca ZIP)
 - Firebase project `fvcktherules-store`: Auth (email/Google) + Firestore. Koleksi: `produk`, `orders`, `lacak`(+`timeline`), `lacakIdx`, `pelunasan`, `vouchers`, `customers`, `settings/bannerText`, `galeri`, `banners`.
 - Produk: `nama, harga ("Rp 189.000"), badge (pre/ready/sold), status, warna ("A / B"), stok (ukuran tersedia "S / M / L"), thumbnail, details[], specs, dpAllowed, kodePrefix, poClosed`. "Stok" di sistem ini = **daftar ukuran tersedia**, bukan jumlah.
-- Checkout utama: **bayar dulu → upload bukti (Cloudinary) → `saveOrder`** dengan `status:'pending'`. Tidak ada gateway/webhook; admin memverifikasi bukti manual lalu set DP/LUNAS. Game mengikuti alur persis ini (tidak pernah menulis LUNAS).
+- Checkout utama: **pesan dulu → bayar lewat Midtrans Snap (Cloudflare Worker `payment-worker`) → webhook Midtrans mengubah status ke DP/LUNAS**. Order dibuat `status:'pending'`, lalu *server* yang mengubah statusnya. Game mengikuti alur persis ini (tidak pernah menulis LUNAS).
 - Keranjang utama tidak punya field qty: 1 entri per pcs. Game memecah qty menjadi entri berulang agar admin/lacak/resi tetap kompatibel.
 - Ongkir: Google Apps Script (Biteship, J&T, 250 g/item) + wilayah emsifa. Dipakai ulang apa adanya. Backup order ke Google Sheet (GAS POST) juga diulang.
-- Rekening: **hardcoded di index.html utama** (Mandiri 1370023790229, GoPay 081910421976, a.n. Dias Adhitya Purnama Putra), bukan di config. Disalin ke `PAY` di `shop.js` — ubah di sana jika rekening berubah.
+- Pembayaran: Midtrans Snap lewat API `fvck-pay` (alamat di `payment-config.js` toko utama; Server Key hanya ada di Worker). Rekening/QRIS statis tidak dipakai lagi di game (`PAY` di `shop.js` dan `assets/qris.jpg` sudah dihapus).
 
 ## Risiko / masalah keamanan (bawaan toko utama, tidak diubah)
-1. Rules `orders`: `create` hanya mewajibkan `status=='pending'` → siapa pun bisa membuat order dengan harga apa pun lewat REST API. Game menghitung harga dari data Firestore terbaru, tapi server tidak memvalidasi. Mitigasi realistis & gratis: admin selalu mencocokkan `totalAkhir` dengan bukti bayar & katalog (sudah jadi alur manual). Validasi server penuh butuh Cloud Functions (plan Blaze, tidak gratis).
+1. Rules `orders`: `create` hanya mewajibkan `status=='pending'` → siapa pun bisa membuat dokumen order dengan harga apa pun lewat REST API. Untuk pembayaran Midtrans ini ditutup di sisi Worker: sebelum token Snap dibuat, Worker menghitung ulang harga resmi dari katalog, memeriksa diskon, dan memvalidasi nominal DP, sehingga order berharga palsu tidak bisa dibayar (dokumennya tetap `pending`, admin bisa menolaknya). Validasi server penuh di sisi Firestore butuh Cloud Functions (plan Blaze, tidak gratis).
 2. Voucher boleh diturunkan kuotanya oleh publik (by design di rules).
 3. Pelanggan tidak bisa mengubah status/pembayaran (rules `orders.update` hanya admin) — sudah aman.
 4. Sesi login Firebase per-origin: login di toko utama **tidak** terbawa ke game subdomain (login opsional tersedia di form checkout).
-5. Game bergantung pada `fucktherules.my.id/firebase.js` (versi `?v=20261013`). Jika nama export di sana diganti, game ikut terdampak. Itu harga dari "tidak menduplikasi kode". Alternatif: salin firebase.js ke repo game (tapi tidak ikut update).
+5. Game bergantung pada `fucktherules.my.id/firebase.js` (versi `?v=20261045`) dan `fucktherules.my.id/payment-config.js`. Jika nama export di sana diganti, game ikut terdampak. Itu harga dari "tidak menduplikasi kode". Alternatif: salin file itu ke repo game (tapi tidak ikut update).
+
+## Pembayaran Midtrans (pay.js) — sama dengan toko utama
+Checkout game memakai API pembayaran yang sama dengan toko utama (Cloudflare Worker `fvck-pay`). **Tidak ada key/secret baru di repo game.**
+- Alur: form kirim → layar **LUNAS / DP** (minimal DP dari `settings/payment` + aturan DP per produk, rumus sama dengan toko utama) → `saveOrder` (`tipeBayar:'Midtrans'`, `payMode`, `payAmount`, `status:'pending'`) → popup Midtrans Snap (QRIS, e-wallet, VA bank, dll) → **struk sebagai papan status**: MENUNGGU PEMBAYARAN / DP DITERIMA / LUNAS / DIBATALKAN.
+- Status LUNAS/DP diubah **server** (webhook Midtrans + `/sync` sesaat setelah popup). Game tidak pernah menulis status bayar. Worker juga menghitung ulang harga resmi dan memvalidasi DP sebelum membuat token Snap.
+- Popup ditutup tanpa bayar: pesanan tetap tersimpan; **LANJUT BAYAR** (di struk, atau di aplikasi **Lacak** HP) memakai ulang token yang sama (tanpa transaksi ganda). **CEK STATUS** untuk VA/QRIS yang dibayar lewat aplikasi bank. Tidak dibayar sampai batas waktu → Worker membatalkan pesanan dan mengembalikan stok.
+- Pelunasan sisa DP: aplikasi **Pelunasan** di HP → **Lanjut bayar** (tahap `P`).
+- Alamat API dibaca dari `https://fucktherules.my.id/payment-config.js` (satu sumber kebenaran, seperti `firebase.js`). Snap.js hanya dimuat dari `app(.sandbox).midtrans.com`.
+- Order dari game bertanda `sumber:'game'` (hanya penanda). Struk lama dari versi bayar-manual tetap bisa dibuka (status "menunggu verifikasi admin", tanpa tombol bayar).
+- Selama popup terbuka game berhenti menggambar 3D dan `touch-action` html/body dilonggarkan (kelas `snap-open`) supaya popup bisa di-scroll di HP.
+- Aturan yang diduplikasi dari toko utama (ubah bersamaan jika berubah): minimal DP per produk (`minDP()` di `shop.js` ⇄ `minDPType()` di `script.js` toko utama ⇄ `hitungMinDPItems()` di `payment-worker/worker.js`).
 
 ## Deployment (gratis)
 1. GitHub → New repository `fvcktherules-game` (Public). Upload **isi** folder ini (bukan foldernya) ke branch `main`.
@@ -33,17 +44,17 @@ Tidak ada file toko utama yang diubah. CNAME toko utama tetap `fucktherules.my.i
 4. Firebase Console → Authentication → Settings → **Authorized domains** → tambah `game.fucktherules.my.id` (diperlukan jika memakai Google sign-in; aman ditambahkan juga untuk email).
 5. Google Cloud Console → Credentials → API key `AIzaSyCVL_…`: jika ada *HTTP referrer restriction*, tambahkan `https://game.fucktherules.my.id/*`.
 6. Pastikan `https://fucktherules.my.id/firebase.js` bisa diimpor lintas-origin (GitHub Pages mengirim `Access-Control-Allow-Origin: *`; cek tab Network).
-7. Uji setelah live (daftar di bawah). Firestore rules **tidak perlu diubah**.
+7. **Pembayaran:** di repo toko utama, `payment-worker/wrangler.toml` harus memuat `https://game.fucktherules.my.id` di `ALLOWED_ORIGINS` (file patch disertakan). Push ke `main` → workflow *Deploy API Pembayaran* otomatis deploy ulang Worker. Tanpa ini popup bayar gagal (CORS: "Origin tidak diizinkan"). Notification URL Midtrans tidak berubah (tetap ke Worker).
+8. Uji setelah live (daftar di bawah) — mulai dengan **Midtrans Sandbox**. Firestore rules **tidak perlu diubah**.
 
 ## Status pengujian
 Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock**):
 - Versi 3D: render WebGL (SwiftShader) tanpa error; kamera third-person, tekstur dinding/lantai/papan, hanger dengan kaos (tekstur foto produk, memuat dari Cloudinary w_256), prompt per hanger, E membuka panel produk, ESC menutup. Posisi pemain di-teleport lewat hook `?debug` untuk tes (hook tidak aktif tanpa parameter itu).
 - Katalog dari data `produk`, pilih warna/ukuran (hanya ukuran di `stok`), qty, ADD TO CART, badge HUD, tas persisten (localStorage, divalidasi ulang ke katalog).
-- Checkout: validasi form, cascade wilayah, ongkir, voucher nominal, total (378.000+20.000−10.000=388.000), tolak submit tanpa bukti, payload order (produk dipecah per pcs, `isPO`, `kodePrefix`, `dpEligible`), struk dengan ID dari `saveOrder`, tas dikosongkan.
-**BELUM diuji (perlu kamu uji di produksi):** Firebase/Firestore asli; order muncul di admin.html; ID dipakai di Pantau Pesanan; voucher persen/free_ongkir; import lintas-origin `firebase.js`; Biteship/J&T asli; QRIS asli tampil; Google/email login; Android fisik; jumlah order saat klik ganda (tombol dikunci + flag `busy`, tapi belum dihitung di database asli); perubahan produk live di admin.
+- Checkout & pembayaran Midtrans: diuji end-to-end dengan **`worker.js` asli toko utama** (Firestore & Midtrans diganti emulator) di Chromium headless 390×780 sentuh, 73 cek lulus: LUNAS (pre order + tambahan + voucher), DP dengan aturan per produk (nominal + persen) dan parity minimal DP dengan Worker (119.999 ditolak, 120.000 diterima), popup ditutup → LANJUT BAYAR (token dipakai ulang, tanpa transaksi ganda), VA pending → CEK STATUS, kedaluwarsa (order batal + stok kembali), Worker tidak terjangkau, aksesoris (hanya lunas), Pelunasan & Lacak di HP, struk lama, CORS origin game, tanpa error JavaScript.
+**BELUM diuji (perlu kamu uji di produksi):** Firebase/Firestore asli; order muncul di admin.html; ID dipakai di Pantau Pesanan; voucher free_ongkir; import lintas-origin `firebase.js` / `payment-config.js` dari domain asli; **popup Midtrans Snap asli + webhook asli (coba di Sandbox dulu)**; CORS dari `game.fucktherules.my.id` asli setelah Worker di-deploy ulang; Biteship/J&T asli; Google/email login; Android/iOS fisik (terutama scroll popup Snap di HP); perubahan produk live di admin.
 
 ## Belum diwujudkan
-- Verifikasi pembayaran otomatis: tidak ada (QRIS statis, tanpa gateway). Status selalu *menunggu verifikasi admin*. Struktur siap: ganti `openPay()`/`submit()` di `shop.js` dengan gateway kelak.
 - Musik ambient (hanya efek suara WebAudio buatan, tombol mute). Rak khusus "City Series": belum ada penanda series di data produk — pakai filter katalog.
 - Semua model dibuat prosedural dari kode (kaos = badan+lengan+kerah berkerut, bukan kotak; tekstur bata/beton digambar via canvas). Warna kaos mengikuti field `warna` produk; foto produk tampil di panel/katalog, bukan ditempel ke kaos. Three.js dimuat dari CDN (butuh internet); jika gagal, game jatuh ke KATALOG CEPAT. Untuk realisme lebih tinggi: ganti dengan model .glb gratis (CC0) + GLTFLoader.
 
@@ -85,8 +96,8 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Format: PNG/WebP transparan, desain cetak saja (tanpa gambar kaos), lebar ±1200 px. Jika kolom kosong, game memakai foto produk tanpa latar (cara lama).
 
 ## Aplikasi pesanan di HP: Lacak, Cek Resi, Pelunasan
-- Memakai fungsi yang sama dengan web utama lewat `S.fb` (firebase.js live): `cariLacak`, `getTimeline`, `getPoUpdates`, `cariResi`, `cariPelunasan`, `uploadGambar(file,'bukti')`, `kirimBuktiPelunasan`. Input satu kolom: ID order / email / no. HP (klasifikasi sama dengan `klasifikasiPantau`).
-- **Lacak**: detail pesanan + kotak resi + timeline (termasuk update per artikel PO). **Cek Resi**: nomor resi, tombol salin, dan "Lacak di J&T" (resi otomatis tersalin, J&T dibuka di browser mini HP). **Pelunasan**: ringkasan total/DP/sisa, rekening (PAY di shop.js) + QRIS, upload bukti → status "menunggu verifikasi".
+- Memakai fungsi yang sama dengan web utama lewat `S.fb` (firebase.js live): `cariLacak`, `getTimeline`, `getPoUpdates`, `cariResi`, `cariPelunasan`. Input satu kolom: ID order / email / no. HP (klasifikasi sama dengan `klasifikasiPantau`).
+- **Lacak**: detail pesanan + kotak resi + timeline (termasuk update per artikel PO). **Cek Resi**: nomor resi, tombol salin, dan "Lacak di J&T" (resi otomatis tersalin, J&T dibuka di browser mini HP). **Pelunasan**: ringkasan total/DP/sisa + tombol **Lanjut bayar** (Midtrans, tahap `P`; bukan lagi transfer + upload bukti). Di **Lacak**, pesanan yang masih *Pending* juga punya tombol **Lanjut bayar** (tahap `F`).
 - Data pelanggan hanya terbaca lewat pencarian (index hash di web utama) — aturan keamanan tidak diubah.
 
 ## Aksesoris (meja AKSESORIS)
@@ -94,7 +105,7 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Stok aksesoris = satu dokumen di koleksi `stok` (ID `stokIdAks`), jadi checkout game memakai `kurangiStok` yang sama dan order yang ditolak admin mengembalikan stoknya otomatis. Tanpa dokumen stok = tidak dibatasi.
 - Di game: meja kayu + papan **AKSESORIS** di dinding kiri, di samping kaca (antara papan SOCCER CULTURE dan poster 26). Dekati lalu E → katalog filter AKSESORIS. Foto thumbnail aksesoris dipajang berdiri di atas meja (maks. 8; yang sold out di urutan akhir dan digelapkan).
 - Aksesoris juga muncul di KATALOG (SEMUA / PRE ORDER / READY STOCK / ARSIP) dan chip **AKSESORIS**. Di tas & struk tidak ada teks warna/ukuran. Di order, item aksesoris memakai `warna:'-'`, `size:'-'`, `jenis:'aksesoris'`.
-- Urutan deploy: **web utama dulu** (firebase.js baru + firestore.rules baru), baru game (game memanggil `firebase.js?v=20261030`).
+- Urutan deploy: **web utama dulu** (firebase.js baru + firestore.rules baru + `wrangler.toml` baru agar Worker menerima origin game), baru game (game memanggil `firebase.js?v=20261045`).
 
 ## Aksesoris BESAR (menempel di tembok)
 - Admin web utama → Aksesoris → centang **BESAR** (field `besar: true` di dokumen `aksesoris`). Dibaca game sebagai `big`.

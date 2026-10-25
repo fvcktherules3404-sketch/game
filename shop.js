@@ -1,12 +1,11 @@
 // shop.js — katalog, tas, checkout, kasir. Memakai firebase.js milik website utama (saveOrder, listenProduk, voucher, auth).
 // TIDAK ada katalog/harga/ID order buatan sendiri: semua dari Firestore project fvcktherules-store.
+import { mulaiBayar, isPaying, payApi, tampilLoadingBayar, sembunyiLoadingBayar, statusNorm, waitText } from './pay.js?v=20261050';
 export const MAIN_ORIGIN = 'https://fucktherules.my.id';
-const FB_URL = MAIN_ORIGIN + '/firebase.js?v=20261030';          // modul yang sama dengan website utama (satu sumber kebenaran)
+const FB_URL = MAIN_ORIGIN + '/firebase.js?v=20261045';          // modul yang sama dengan website utama (satu sumber kebenaran; versi disamakan dgn script.js utama)
 const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbyoVdbvq1JvCtzWFbJaZUdTO2I30DXn4N0p_XOidk98cPnj8m22j2Aa0q6k90KH4sOhUw/exec';
 const GAS_BITESHIP = 'https://script.google.com/macros/s/AKfycbyDTEPvP5yndja35U02nkC4lsYRy3vQqVe2s4NTx-MxBE8MCSB9co2ztG5ZDMtJzuAO/exec';
 const WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/v2';
-// Salinan dari index.html website utama (di sana hardcoded, bukan di config). Ubah di sini jika rekening berubah.
-export const PAY = { bank: 'MANDIRI', rek: '1370023790229', gopay: '081910421976', an: 'Dias Adhitya Purnama Putra' };
 const SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 const AKS = '-';                       // varian tunggal aksesoris (tanpa warna/ukuran); sama dengan stokIdAks() di firebase.js
 const CART_KEY = 'fvckgame.cart.v1', LAST_KEY = 'fvckgame.lastReceipt.v1';
@@ -62,7 +61,7 @@ export async function initShop(onUpdate) {
         id: p.id, name: p.nama || '', price: p.harga, priceN: digits(p.harga), badge: (p.badge || '').toLowerCase(),
         status: p.status || '', colors: p.warna ? p.warna.split('/').map(c => c.trim()).filter(Boolean) : [],
         stock: p.stok ? p.stok.split('/').map(s => s.trim()) : [], thumb: p.thumbnail || '', design: p.desain || '', details: p.details || [],
-        specs: p.specs || '', addons: Array.isArray(p.tambahan) ? p.tambahan.filter(a => a && a.nama).map(a => ({ nama: String(a.nama), harga: Number(a.harga) || 0 })) : [], dpAllowed: p.dpAllowed || 'yes', kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0
+        specs: p.specs || '', addons: Array.isArray(p.tambahan) ? p.tambahan.filter(a => a && a.nama).map(a => ({ nama: String(a.nama), harga: Number(a.harga) || 0 })) : [], dpAllowed: p.dpAllowed || 'yes', dpMode: p.dpMode || '', dpValue: Number(p.dpValue) || 0, kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0
       })).filter(p => ['pre', 'ready', 'sold'].includes(p.badge)).sort((a, b) => b.order - a.order);
       S.status = 'ok'; notify(onUpdate);
     }, err => { console.error(err); S.status = 'error'; notify(onUpdate); });
@@ -72,7 +71,7 @@ export async function initShop(onUpdate) {
       S.acc = list.map(p => ({
         id: p.id, acc: true, name: p.nama || '', price: p.harga, priceN: digits(p.harga), badge: (p.badge || '').toLowerCase(),
         status: p.status || '', colors: [AKS], stock: [AKS], thumb: p.thumbnail || '', design: p.desain || '', details: p.details || [],
-        specs: p.specs || '', addons: [], dpAllowed: p.dpAllowed || 'yes', kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0, big: !!p.besar   // big = tampil besar menempel di tembok (game 3D), tanpa bingkai
+        specs: p.specs || '', addons: [], dpAllowed: p.dpAllowed || 'yes', dpMode: p.dpMode || '', dpValue: Number(p.dpValue) || 0, kodePrefix: p.kodePrefix || '', poClosed: !!p.poClosed, order: p.order || 0, big: !!p.besar   // big = tampil besar menempel di tembok (game 3D), tanpa bingkai
       })).filter(p => ['pre', 'ready', 'sold'].includes(p.badge)).sort((a, b) => b.order - a.order);
       notify(onUpdate); if (view === 'product' && !P.el.hidden && sel.pid) openProduct(sel.pid, P.backFn);
     }, err => { console.error('aksesoris', err); S.acc = []; notify(onUpdate); });
@@ -197,8 +196,8 @@ export function openCart() {
 }
 
 /* ---------- Checkout ---------- */
-let co = { f: {}, ongkir: 0, areaId: '', voucher: null, busy: false, bukti: '', tok: 0 };
-const needDP = () => !lines().some(l => l.p && l.p.dpAllowed === 'no');
+const coBaru = () => ({ f: {}, ongkir: 0, areaId: '', voucher: null, busy: false, tok: 0 });
+let co = coBaru();
 function calc() {
   const sub = subtotal(); let d = 0; const v = co.voucher;
   if (v) d = v.tipe === 'nominal' ? Number(v.nilai) : v.tipe === 'persen' ? Math.round(sub * Number(v.nilai) / 100) : v.tipe === 'free_ongkir' ? co.ongkir : 0;
@@ -213,7 +212,7 @@ async function wil(path) { if (wc[path]) return wc[path]; let r; try { r = await
 export function openCheckout() {
   if (!lines().length) return openCart();
   const f = co.f; if (S.user && !f.email) f.email = S.user.email || '';
-  show('CHECKOUT — KASIR', `<div class="note">Data pengiriman sama seperti di toko utama. Setelah ini kamu bayar (QRIS / transfer), upload bukti, lalu pesanan masuk ke admin.</div>
+  show('CHECKOUT — KASIR', `<div class="note">Data pengiriman sama seperti di toko utama. Setelah ini kamu bayar lewat <b>Midtrans</b> (QRIS, e-wallet, virtual account bank, dll). Status pesanan berubah otomatis, tanpa upload bukti.</div>
     <div id="authBox">${S.user ? `<div class="note">Login sebagai ${esc(S.user.email)}. Pesanan masuk ke riwayat akunmu.</div><button data-act="logout" style="width:100%">LOGOUT</button>` : `<button data-act="loginToggle" style="width:100%">LOGIN (OPSIONAL)</button><div id="loginForm" hidden><input id="lgE" type="email" placeholder="Email akun toko" autocomplete="email"><input id="lgP" type="password" placeholder="Password" autocomplete="current-password"><button data-act="login" class="pri" style="width:100%">MASUK</button><div class="err-t" id="lgErr"></div></div>`}</div>
     <label class="f">NAMA LENGKAP</label><input data-f="nama" value="${esc(f.nama)}" autocomplete="name">
     <label class="f">NO. WHATSAPP</label><input data-f="wa" value="${esc(f.wa)}" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx">
@@ -293,31 +292,81 @@ function validate() {
   return '';
 }
 
-/* ---------- Pembayaran di kasir ---------- */
-let payTab = 'qris';
-function openPay() {
-  const c = calc();
-  const qr = `<div class="qr"><img id="qrImg" src="${MAIN_ORIGIN}/qris.jpg" alt="QRIS FVCKTHERULES" onerror="this.onerror=null;this.src='assets/qris.jpg'"></div>
-    <div class="note">Scan QRIS ini dengan aplikasi bank / e-wallet. Bermain di HP yang sama? Tekan tombol di bawah untuk menyimpan gambar, lalu pilih dari galeri di aplikasi pembayaran.</div>
-    <a class="btn" style="width:100%" href="${MAIN_ORIGIN}/qris.jpg" download="QRIS-FVCKTHERULES.jpg" target="_blank" rel="noopener">SIMPAN / BUKA GAMBAR QR</a>`;
-  const tf = `<div class="acc"><div class="lbl" style="margin-top:0">${PAY.bank}</div><b>${PAY.rek}</b><br><button data-act="copy" data-v="${PAY.rek}" style="margin-top:8px">SALIN NO. REKENING</button></div>
-    <div class="acc"><div class="lbl" style="margin-top:0">GOPAY</div><b>${PAY.gopay}</b><br><button data-act="copy" data-v="${PAY.gopay}" style="margin-top:8px">SALIN NOMOR</button></div><div class="row"><span>Atas nama</span><b>${esc(PAY.an)}</b></div>`;
-  show('KASIR — BAYAR', `<div class="row tot" style="border:0;margin:0"><span>TRANSFER SEBESAR</span><span style="color:var(--ac)">${rp(c.total)}</span></div>
-    <div class="tabs"><button data-act="ptab" data-v="qris" class="${payTab === 'qris' ? 'on' : ''}">QRIS</button><button data-act="ptab" data-v="bank" class="${payTab === 'bank' ? 'on' : ''}">TRANSFER BANK</button></div>
-    ${payTab === 'qris' ? qr : tf}
-    <div class="note">${needDP() ? 'Pembayaran dapat dilakukan Full (Lunas) atau DP minimal Rp70.000. ' : ''}Status pesanan tetap <b>MENUNGGU VERIFIKASI</b> sampai admin mengecek bukti bayarmu. Tombol di bawah tidak mengubah status menjadi lunas.</div>
-    <div class="lbl">UPLOAD BUKTI BAYAR</div><input id="bukti" type="file" accept="image/*"><div class="err-t" id="bMsg">${co.bukti ? '✓ Bukti sudah terupload.' : ''}</div><div class="err-t" id="pErr"></div>
-    <div class="foot"><button class="accent" id="bSubmit" data-act="submit">KIRIM PESANAN</button></div>`, () => openCheckout());
-  $('#bukti').onchange = async e => { const file = e.target.files[0]; if (!file) return; const m = $('#bMsg'); m.style.color = ''; m.textContent = 'Mengupload…'; co.bukti = '';
-    co.bukti = (await S.fb.uploadGambar(file, 'bukti').catch(() => null)) || ''; m.textContent = co.bukti ? '✓ Bukti sudah terupload.' : '✗ Gagal upload, coba lagi.'; };
+/* ---------- Pembayaran (Midtrans Snap, sama dengan toko utama) ---------- */
+// Alur: form kirim -> pilih LUNAS / DP -> order disimpan (status pending) -> popup Midtrans (QRIS, e-wallet, VA bank, dll).
+// Status LUNAS / DP diubah OLEH SERVER (webhook Midtrans); game hanya membuat order 'pending', tidak pernah menulis status bayar.
+let payS = null;                                    // pengaturan minimal DP (settings/payment), dibaca ulang setiap halaman bayar dibuka
+const pay = { mode: 'lunas', dp: 0 };
+const resetPay = () => { pay.mode = 'lunas'; pay.dp = 0; };
+const dpOwn = i => !!(i && (i.dpMode === 'percent' || i.dpMode === 'nominal') && Number(i.dpValue) > 0);
+const dpBoleh = () => !lines().some(l => l.p && l.p.dpAllowed === 'no');             // satu item "tanpa DP" => seluruh tas wajib lunas
+// Minimal DP: rumus sama dengan minDPType() di script.js toko utama dan hitungMinDPItems() di payment-worker/worker.js (ubah bersamaan).
+function minDP(total) {
+  const hm = S.fb.hitungMinDP, arr = lines().flatMap(l => Array.from({ length: l.qty }, () => ({ harga: l.unit, dpMode: l.p.dpMode, dpValue: l.p.dpValue })));
+  const own = arr.filter(dpOwn), def = arr.filter(i => !dpOwn(i));
+  if (!own.length) return hm(total, payS);
+  let min = own.reduce((a, i) => a + hm(i.harga, { dpMode: i.dpMode, dpValue: i.dpValue }), 0);
+  if (def.length) min += hm(def.reduce((a, i) => a + i.harga, 0), payS);
+  return min;
 }
+const dpBisa = total => !!(payS && S.fb.hitungMinDP && dpBoleh() && minDP(total) < total);
+const infoBayar = total => (pay.mode === 'dp' ? { mode: 'dp', nominal: Math.round(pay.dp) } : { mode: 'lunas', nominal: total });
+function validasiPay() {
+  const total = calc().total;
+  if (!(total > 0)) return 'Total pesanan tidak valid.';
+  if (pay.mode === 'dp') {
+    if (!dpBisa(total)) return 'Pesanan ini tidak bisa DP. Pilih lunas.';
+    const min = minDP(total);
+    if (!pay.dp) return 'Tulis nominal DP dulu.';
+    if (pay.dp < min) return `DP minimal ${rp(min)}.`;
+    if (pay.dp >= total) return 'DP harus kurang dari total.';
+  }
+  return '';
+}
+let payTok = 0;
+async function openPay() {
+  const tok = ++payTok;
+  show('KASIR — BAYAR', '<div class="msg">Memuat pengaturan pembayaran…</div>', () => openCheckout()); view = 'pay';
+  payS = null;
+  try { if (S.fb.getPaymentSettings && S.fb.hitungMinDP) payS = await S.fb.getPaymentSettings(); } catch (e) { console.warn('pengaturan bayar', e); }
+  if (tok === payTok && view === 'pay') renderPay();
+}
+function renderPay() {
+  const total = calc().total, bisaDP = dpBisa(total), min = bisaDP ? minDP(total) : 0;
+  if (!bisaDP) resetPay();
+  const opts = bisaDP ? `<div class="pay-opts">
+      <button class="pay-opt ${pay.mode === 'lunas' ? 'on' : ''}" data-act="pmode" data-v="lunas"><b>LUNAS</b><small>${rp(total)}</small></button>
+      <button class="pay-opt ${pay.mode === 'dp' ? 'on' : ''}" data-act="pmode" data-v="dp"><b>DP</b><small>Min. ${rp(min)}</small></button></div>
+    ${pay.mode === 'dp' ? `<label class="f" for="payDp">NOMINAL DP</label><input id="payDp" type="text" inputmode="numeric" autocomplete="off" placeholder="Tulis nominal DP, mis. ${min.toLocaleString('id-ID')}" value="${pay.dp ? pay.dp.toLocaleString('id-ID') : ''}"><div class="pay-hint" id="payHint"></div>` : ''}`
+    : `<div class="row pay-single"><span>Bayar penuh (lunas)</span><b>${rp(total)}</b></div>`;
+  show('KASIR — BAYAR', `<div class="payfill"><div class="row tot" style="border:0;margin:0"><span>TOTAL PESANAN</span><span>${rp(total)}</span></div>
+    <div class="lbl">${bisaDP ? 'PILIHAN PEMBAYARAN' : 'PEMBAYARAN'}</div>${opts}
+    <div class="note">Pembayaran lewat <b>Midtrans</b>: QRIS, e-wallet, virtual account bank, dan metode lain. Metode dipilih di langkah berikutnya, status pesanan berubah otomatis setelah bayar. Tidak perlu upload bukti.</div>
+    <div class="note">Setelah menekan tombol di bawah, pesananmu disimpan lalu kamu masuk ke halaman pembayaran aman Midtrans. Tidak dibayar sampai batas waktu = pesanan dibatalkan otomatis.</div>
+    <div class="err-t" id="pErr"></div>
+    <div class="foot"><button class="accent" id="bSubmit" data-act="submit">LANJUT BAYAR</button></div></div>`, () => openCheckout());
+  view = 'pay'; if (pay.mode === 'dp') updateDpHint();
+}
+function updateDpHint() {
+  const el = $('#payHint'); if (!el) return;
+  const total = calc().total, min = minDP(total); let t, err = false;
+  if (!pay.dp) t = `DP minimal ${rp(min)}. Sisanya dilunasi nanti lewat aplikasi Pelunasan (HP) atau menu Pelunasan di toko utama.`;
+  else if (pay.dp < min) { t = `Kurang dari DP minimal ${rp(min)}.`; err = true; }
+  else if (pay.dp >= total) { t = 'DP harus kurang dari total. Mau bayar penuh? Pilih LUNAS.'; err = true; }
+  else t = `Bayar sekarang ${rp(pay.dp)} · sisa ${rp(total - pay.dp)} dilunasi belakangan.`;
+  el.textContent = t; el.className = 'pay-hint' + (err ? ' err' : '');
+}
+function onDpInput(el) { const n = Number(String(el.value).replace(/\D/g, '')) || 0; pay.dp = n; el.value = n ? n.toLocaleString('id-ID') : ''; updateDpHint(); }
+
 async function submit() {
   if (co.busy) return;                                    // cegah klik ganda -> order ganda
-  const err = validate(); const pe = $('#pErr'); if (err) { pe.textContent = err; return; }
-  if (!co.bukti) { pe.textContent = 'Upload bukti bayar dulu (sama seperti di toko utama).'; return; }
-  co.busy = true; const btn = $('#bSubmit'); btn.disabled = true; btn.textContent = 'MENGIRIM…'; pe.textContent = '';
+  const pe = $('#pErr'), err = validate() || validasiPay(); if (err) { pe.textContent = err; return; }
+  co.busy = true; const btn = $('#bSubmit'); btn.disabled = true; btn.textContent = 'MENYIMPAN…'; pe.textContent = '';
+  tampilLoadingBayar('Menyimpan pesanan…');
+  const lepas = msg => { sembunyiLoadingBayar(); co.busy = false; btn.disabled = false; btn.textContent = 'LANJUT BAYAR'; pe.textContent = msg; };
+  let rec;
   try {
-    const f = co.f, L = lines(), c = calc();
+    const f = co.f, L = lines(), c = calc(), by = infoBayar(c.total);
     const flat = L.flatMap(l => Array.from({ length: l.qty }, () => ({ nama: l.p.name, warna: l.color, size: l.size, harga: l.unit, tambahan: addonText(l.p, l.addons), ...(l.p.acc ? { jenis: 'aksesoris' } : {}) })));   // format sama: 1 entri per pcs
     const pre = L.filter(l => l.p.badge === 'pre');
     const orderData = {
@@ -325,7 +374,8 @@ async function submit() {
       alamat: `${f.alamat.trim()}, ${f.kel}, Kec. ${f.kec}, ${f.kota}, ${f.prov} ${f.zip}`,
       produk: flat, produkText: flat.map(i => i.jenis === 'aksesoris' ? i.nama : `${i.nama} (${i.warna}|${i.size}${i.tambahan ? ' + ' + i.tambahan : ''})`).join(', '),
       hargaKaos: c.sub, ongkir: c.ongkir, voucherKode: co.voucher?.kode || '', voucherDeskripsi: voucherDesc(), totalAkhir: c.total,
-      tipeBayar: 'Cek Bukti Bayar', dp: '', buktiURL: co.bukti, dpEligible: L.some(l => l.p.dpAllowed !== 'no'),
+      tipeBayar: 'Midtrans', dp: '', buktiURL: '', payMode: by.mode, payAmount: by.nominal,      // sama dengan order dari toko utama; nominal & harga dicek ulang oleh API pembayaran
+      dpEligible: dpBoleh(),
       kodePrefix: (pre.find(l => l.p.kodePrefix) || L.find(l => l.p.kodePrefix) || { p: {} }).p.kodePrefix || '',
       isPO: pre.length > 0, poIds: [...new Set(pre.map(l => l.p.id))], poNames: [...new Set(pre.map(l => l.p.name))],
       sumber: 'game'                                      // penanda tambahan; tidak dipakai logika toko utama
@@ -335,9 +385,8 @@ async function submit() {
     if (dilacak.length && S.fb.kurangiStok) {
       try { orderData.stokItems = await S.fb.kurangiStok(dilacak.flatMap(l => Array.from({ length: l.qty }, () => ({ pid: l.p.id, warna: l.color, size: l.size })))); }
       catch (e) {
-        if (e && e.code === 'STOK_HABIS') { const h = e.habis[0]; co.busy = false; btn.disabled = false; btn.textContent = 'KIRIM PESANAN';
-          const nm = h.warna === AKS && h.size === AKS ? 'Aksesoris di tas' : `${h.warna} ${h.size}`;
-          pe.textContent = h.sisa > 0 ? `Stok ${nm} tinggal ${h.sisa}. Ubah jumlah di tas dulu.` : `${nm} baru saja habis. Hapus dari tas dulu.`; return; }
+        if (e && e.code === 'STOK_HABIS') { const h = e.habis[0], nm = h.warna === AKS && h.size === AKS ? 'Aksesoris di tas' : `${h.warna} ${h.size}`;
+          return lepas(h.sisa > 0 ? `Stok ${nm} tinggal ${h.sisa}. Ubah jumlah di tas dulu.` : `${nm} baru saja habis. Hapus dari tas dulu.`); }
         throw e;
       }
     }
@@ -345,22 +394,90 @@ async function submit() {
     if (!id) throw new Error('saveOrder null');
     if (co.voucher) { try { await S.fb.updateVoucherKuota(co.voucher.id, co.voucher.kuota - 1); } catch {} }
     fetch(GAS_ORDER_BACKUP, { method: 'POST', mode: 'no-cors', cache: 'no-cache', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(orderData) }).catch(() => {});
-    const rec = { kode: orderData.kodePelunasan, total: c.total, sub: c.sub, ongkir: c.ongkir, d: c.d, items: flat, nama: orderData.nama, at: new Date().toISOString() };
-    try { localStorage.setItem(LAST_KEY, JSON.stringify(rec)); } catch {}
-    S.cart = []; saveCart(); co = { f: {}, ongkir: 0, areaId: '', voucher: null, busy: false, bukti: '', tok: 0 };
-    ui.beep('ding'); openReceipt(rec);
-  } catch (e) { console.error(e); co.busy = false; btn.disabled = false; btn.textContent = 'KIRIM PESANAN'; $('#pErr').textContent = 'Gagal menyimpan pesanan. Periksa koneksi lalu coba lagi (pesananmu belum terkirim).'; }
+    rec = { kode: orderData.kodePelunasan, via: 'midtrans', mode: by.mode, payAmount: by.nominal, status: 'pending', total: c.total, sub: c.sub, ongkir: c.ongkir, d: c.d, items: flat, nama: orderData.nama, at: new Date().toISOString() };
+  } catch (e) { console.error(e); return lepas('Gagal menyimpan pesanan. Periksa koneksi lalu coba lagi (pesananmu belum terkirim).'); }
+  putRec(rec); S.cart = []; saveCart(); co = coBaru(); resetPay();
+  ui.beep('ding'); openReceipt(rec, { auto: true });      // struk jadi "papan status" di belakang popup Midtrans
+  bayar(rec, 'F');
 }
 const voucherDesc = () => { const v = co.voucher; return !v ? '' : v.tipe === 'nominal' ? `Diskon Belanja Rp${Number(v.nilai).toLocaleString('id-ID')}` : v.tipe === 'persen' ? `Diskon Belanja ${v.nilai}%` : 'Gratis Ongkos Kirim'; };
-export function openReceipt(r = JSON.parse(localStorage.getItem(LAST_KEY) || 'null')) {
+
+/* ---------- Struk & status pembayaran ---------- */
+const readRec = () => { try { return JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch { return null; } };
+const putRec = r => { try { localStorage.setItem(LAST_KEY, JSON.stringify(r)); } catch {} };
+const updRec = r => { const c = readRec(); if (c && c.kode === r.kode) putRec(r); };      // jangan menimpa struk pesanan yang lebih baru
+let curRec = null;
+const ST = { pending: 'MENUNGGU PEMBAYARAN', dp: 'DP DITERIMA', lunas: 'LUNAS', ditolak: 'DIBATALKAN' };
+function setMsg(type, text) { const m = $('#rMsg'); if (!m) return; m.hidden = !text; m.className = 'pm ' + (type || ''); m.textContent = text || ''; }
+function paintReceipt(r) {
+  if (!r || view !== 'receipt' || !curRec || curRec.kode !== r.kode) return;
+  const st = statusNorm(r.status), mid = r.via === 'midtrans';
+  const dpNom = Number(r.dpNominal) || Number(r.payAmount) || 0, sisa = Number(r.sisa) > 0 ? Number(r.sisa) : Math.max(0, r.total - dpNom);
+  let rows = '', note;
+  if (st === 'pending' && mid && r.mode === 'dp') rows = `<div class="row"><span>Bayar sekarang (DP)</span><span>${rp(r.payAmount)}</span></div><div class="row"><span>Sisa dilunasi nanti</span><span>${rp(r.total - r.payAmount)}</span></div>`;
+  if (st === 'dp') rows = `<div class="row"><span>DP dibayar</span><span>${rp(dpNom)}</span></div><div class="row"><span>Sisa pelunasan</span><span>${rp(sisa)}</span></div>`;
+  if (st === 'pending') note = mid ? 'Selesaikan pembayaran sebelum batas waktu, kalau tidak pesanan <b>dibatalkan otomatis</b> dan stok dikembalikan. Sudah bayar lewat aplikasi bank / e-wallet? Tekan <b>CEK STATUS</b>.'
+    : 'Admin akan mengecek bukti bayarmu. Lacak pesanan dengan ID di atas lewat aplikasi <b>Lacak</b> di HP atau menu <b>Cek Pesanan</b> di toko utama.';
+  else if (st === 'dp') note = `DP sudah diterima. Lunasi sisa <b>${rp(sisa)}</b> lewat aplikasi <b>Pelunasan</b> di HP (📱) atau menu Pelunasan di toko utama, pakai ID pesanan di atas.`;
+  else if (st === 'lunas') note = 'Pembayaran lunas, terima kasih! Pantau pesananmu dengan ID di atas lewat aplikasi <b>Lacak</b> di HP (📱) atau menu <b>Cek Pesanan</b> di toko utama.';
+  else note = 'Pembayaran tidak selesai atau sudah kedaluwarsa, jadi pesanan dibatalkan dan stok dikembalikan. Silakan pesan ulang.';
+  const el = id => $('#' + id);
+  el('rInfo').innerHTML = rows; el('rNote').innerHTML = note;
+  const s = el('rStat'); s.textContent = !mid && st === 'pending' ? 'MENUNGGU VERIFIKASI ADMIN' : ST[st] || st.toUpperCase(); s.className = 'st-' + st;
+  el('rPay').hidden = el('rChk').hidden = !(mid && st === 'pending');
+}
+async function refreshRec(r) {                           // status terbaru dari dokumen lacak (publik, bisa dibaca tanpa login)
+  if (!S.fb || !S.fb.cariLacak || !r || !r.kode) return;
+  try {
+    const d = ((await S.fb.cariLacak({ kode: r.kode })) || [])[0];
+    if (d) { r.status = d.pay || 'pending'; if (d.sisa != null) r.sisa = Number(d.sisa) || 0; if (d.dpNominal != null) r.dpNominal = Number(d.dpNominal) || 0; updRec(r); }
+  } catch (e) { console.warn('refresh struk', e); }
+  paintReceipt(r);
+}
+function statusMsg(r, cek) {
+  const st = statusNorm(r.status);
+  return st === 'lunas' ? ['ok', 'PEMBAYARAN BERHASIL!']
+    : st === 'dp' ? ['ok', 'DP BERHASIL DIBAYAR!']
+    : st === 'ditolak' ? ['err', 'PESANAN DIBATALKAN.']
+    : ['wait', cek ? 'Belum ada pembayaran masuk. Kalau sudah bayar, tunggu sebentar lalu tekan CEK STATUS lagi.' : 'MENUNGGU PEMBAYARAN.'];
+}
+function bayar(r, tahap = 'F') {
+  if (!r || isPaying()) return;
+  setMsg('', '');
+  mulaiBayar(r.kode, tahap, { onDone: res => hasilBayar(r, res) });
+}
+async function hasilBayar(r, res) {
+  if (res.status) r.status = res.status;
+  if (res.type === 'success' || res.type === 'pending') {
+    if (statusNorm(r.status) === 'pending') await refreshRec(r);      // sync gagal / webhook belum masuk: baca dokumen lacak
+    const [t, m] = statusMsg(r); setMsg(t, m);
+    if (t === 'ok') { ui.beep('ding'); ui.toast(statusNorm(r.status) === 'lunas' ? '✓ Pembayaran berhasil' : '✓ DP berhasil dibayar'); } else ui.toast('Menunggu pembayaran…');
+  } else if (res.type === 'close') setMsg('wait', waitText('F'));
+  else setMsg('err', res.message || 'Gagal memulai pembayaran.');
+  updRec(r); paintReceipt(r);
+}
+async function cekStatus() {
+  const r = curRec; if (!r || isPaying()) return;
+  setMsg('wait', 'Memeriksa status pembayaran…');
+  try { const s = await payApi('/sync', { kode: r.kode, tahap: 'F' }); if (s && s.status) r.status = statusNorm(s.status); } catch (e) { console.warn('sync', e); }
+  await refreshRec(r);
+  const [t, m] = statusMsg(r, true); setMsg(t, m);
+}
+export function openReceipt(r = readRec(), opt = {}) {
   if (!r) { ui.toast('Belum ada struk.'); return; }
+  curRec = r;
   show('STRUK PESANAN', `<div class="receipt"><h3>FVCKTHERULES</h3><div style="text-align:center;font-size:11px">BORN TO DISOBEY</div><div class="id" id="rid">${esc(r.kode)}</div>
     <div style="text-align:center;font-size:11px">ID PESANAN — simpan untuk Pantau Pesanan</div><hr>
     ${r.items.map(i => `<div class="row"><span>${esc(i.nama)}${i.jenis === 'aksesoris' ? '' : ` (${esc(i.warna)}|${esc(i.size)}${i.tambahan ? esc(' + ' + i.tambahan) : ''})`}</span><span>${esc(String(i.harga).startsWith('Rp') ? i.harga : rp(digits(i.harga)))}</span></div>`).join('')}<hr>
     <div class="row"><span>Subtotal</span><span>${rp(r.sub)}</span></div><div class="row"><span>Ongkir</span><span>${rp(r.ongkir)}</span></div>${r.d ? `<div class="row"><span>Voucher</span><span>− ${rp(r.d)}</span></div>` : ''}
-    <div class="row tot"><span>TOTAL BAYAR</span><span>${rp(r.total)}</span></div><div class="row"><span>STATUS</span><b>MENUNGGU VERIFIKASI ADMIN</b></div></div>
-    <div class="note" style="margin-top:20px">Admin akan mengecek bukti bayarmu. Lacak pesanan dengan ID di atas lewat menu <b>Cek Pesanan</b> di toko utama. Jika DP, pelunasan juga lewat toko utama.</div>
-    <div class="foot"><button data-act="copy" data-v="${esc(r.kode)}">SALIN ID PESANAN</button><a class="btn pri" href="${MAIN_ORIGIN}/">BUKA TOKO UTAMA (CEK PESANAN)</a><button data-act="close">KEMBALI KE TOKO</button></div>`);
+    <div class="row tot"><span>TOTAL PESANAN</span><span>${rp(r.total)}</span></div><div id="rInfo"></div>
+    <div class="row"><span>STATUS</span><b id="rStat"></b></div></div>
+    <div class="pm" id="rMsg" hidden></div>
+    <div class="note" id="rNote" style="margin-top:14px"></div>
+    <div class="rbtns"><button data-act="copy" data-v="${esc(r.kode)}">SALIN ID PESANAN</button><button id="rChk" data-act="cek" hidden>CEK STATUS</button><a class="btn full" href="${MAIN_ORIGIN}/">BUKA TOKO UTAMA (CEK PESANAN)</a></div>
+    <div class="foot"><button class="accent" id="rPay" data-act="rpay" hidden>LANJUT BAYAR</button><button data-act="close">KEMBALI KE TOKO</button></div>`);
+  view = 'receipt'; paintReceipt(r);
+  if (!opt.auto) refreshRec(r);                           // buka ulang struk lama: ambil status terbaru
 }
 export const hasReceipt = () => { try { return !!localStorage.getItem(LAST_KEY); } catch { return false; } };
 
@@ -381,18 +498,20 @@ P.body.addEventListener('click', async e => {
   else if (a === 'cart') openCart();
   else if (a === 'cq') { const it = S.cart[i]; if (it) { it.qty = Math.max(1, Math.min(20, it.qty + Number(v))); saveCart(); openCart(); } }
   else if (a === 'cdel') { S.cart.splice(i, 1); saveCart(); openCart(); }
-  else if (a === 'checkout') { co.voucher = null; openCheckout(); }
+  else if (a === 'checkout') { co.voucher = null; resetPay(); openCheckout(); }
   else if (a === 'voucher') applyVoucher();
   else if (a === 'toPay') { const err = validate(); $('#fErr').textContent = err; if (!err) openPay(); }
-  else if (a === 'ptab') { payTab = v; openPay(); }
+  else if (a === 'pmode') { pay.mode = v === 'dp' ? 'dp' : 'lunas'; renderPay(); }
   else if (a === 'submit') submit();
+  else if (a === 'rpay') bayar(curRec, 'F');
+  else if (a === 'cek') cekStatus();
   else if (a === 'copy') { try { await navigator.clipboard.writeText(v); ui.toast('Tersalin: ' + v); } catch { ui.toast('Tahan & salin manual: ' + v); } }
   else if (a === 'close') closePanel();
   else if (a === 'logout') { const old = S.user?.email; if (await logout()) { if (old && co.f.email === old) co.f.email = ''; ui.toast('Kamu sudah logout'); openCheckout(); } else ui.toast('Logout gagal, coba lagi'); }
   else if (a === 'loginToggle') $('#loginForm').hidden = !$('#loginForm').hidden;
   else if (a === 'login') { const m = $('#lgErr'); m.textContent = 'Masuk…'; try { await S.fb.customerSignIn($('#lgE').value.trim(), $('#lgP').value); S.user = S.fb.auth.currentUser; co.f.email = S.user?.email || co.f.email; openCheckout(); } catch (er) { m.textContent = 'Login gagal. Cek email/password.'; } }
 });
-P.body.addEventListener('input', e => { const k = e.target.dataset.f; if (k) { co.f[k] = e.target.value; if (k === 'zip') co.f.zip = e.target.value.replace(/\D/g, ''); } });
+P.body.addEventListener('input', e => { const k = e.target.dataset.f; if (k) { co.f[k] = e.target.value; if (k === 'zip') co.f.zip = e.target.value.replace(/\D/g, ''); } else if (e.target.id === 'payDp') onDpInput(e.target); });
 export const openProductFrom = openProduct;
 // logout akun toko (sama dengan web utama: keluar dari akun toko + akun jurnal)
 export async function logout() {

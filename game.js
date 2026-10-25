@@ -1,9 +1,10 @@
-import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261032';
-import { initPhone } from './phone.js?v=20261032';
+import { S, initShop, bindUI, openCatalog, openProduct, openCart, openCheckout, openReceipt, hasReceipt, closePanel, panelOpen, cartCount, showRaw, getBannerText, rp, MAIN_ORIGIN, logout, esc } from './shop.js?v=20261050';
+import { initPhone } from './phone.js?v=20261050';
+import { bindPay } from './pay.js?v=20261050';
 const $ = s => document.querySelector(s);
 const cv = $('#game');
 let paused = true, started = false, muted = localStorage.getItem('fvckgame.mute') === '1', t = 0;
-let rPause = false;                                   // true = jangan menggambar 3D (browser HP sedang aktif)
+let rPause = false;                                   // true = jangan menggambar 3D (browser HP / popup bayar Midtrans sedang aktif)
 let phone = { isOpen: () => false, close() { }, toggle() { } };   // diganti initPhone() setelah keys/joystick siap
 /* ---------- audio (WebAudio, tanpa file) ---------- */
 let ac = null;
@@ -495,7 +496,7 @@ const SPOTS = [
 function cashier() {
   beep('ding');
   if (!cartCount()) return say('KASIR', 'Tas kamu masih kosong, bro. Pilih kaos dari hanger dulu — atau tekan KATALOG di atas.', [['BUKA KATALOG', () => openCatalog('all')], hasReceipt() ? ['STRUK TERAKHIR', () => openReceipt()] : ['TUTUP']]);
-  say('KASIR', `Oke, ${cartCount()} item. Siapin alamat sama bukti bayar ya.`, [['CHECKOUT', openCheckout], ['LIHAT TAS', openCart]]);
+  say('KASIR', `Oke, ${cartCount()} item. Siapin alamat ya, bayarnya lewat Midtrans (QRIS / e-wallet / VA bank).`, [['CHECKOUT', openCheckout], ['LIHAT TAS', openCart]]);
 }
 let bannerTxt = null;
 async function board() {
@@ -657,7 +658,7 @@ if (renderer) {
 /* ---------- alur layar ---------- */
 const howHTML = `<div class="note"><b>DESKTOP</b><br>WASD = jalan · geser mouse (tahan klik) / ← → = putar kamera · E = ambil baju / interaksi · V = ganti sudut pandang (orang ketiga/orang pertama) · ESC = tutup panel.</div>
 <div class="note"><b>MOBILE</b><br>Joystick kiri bawah = jalan · geser layar = putar kamera · tombol E (atau tap tulisan "TAP …") = interaksi · tombol TPV/FPV di atas = ganti sudut pandang.</div>
-<div class="note"><b>MISI</b><br>1) Dekati hanger, tekan E, pilih warna & ukuran, ADD TO CART.<br>2) Jalan ke KASIR (atau tekan tombol KASIR ▸ di atas = lompat langsung).<br>3) Isi data kirim, bayar via QRIS / transfer, upload bukti, dapat struk + ID pesanan.</div>
+<div class="note"><b>MISI</b><br>1) Dekati hanger, tekan E, pilih warna & ukuran, ADD TO CART.<br>2) Jalan ke KASIR (atau tekan tombol KASIR ▸ di atas = lompat langsung).<br>3) Isi data kirim, pilih LUNAS atau DP, bayar lewat Midtrans (QRIS, e-wallet, VA bank), langsung dapat struk + ID pesanan.</div>
 <div class="note">Cuma mau belanja cepat? Tombol <b>KATALOG</b> membuka semua produk tanpa jalan-jalan. Harga & stok selalu dari toko utama.</div>
 <div class="note">Aksesoris ada di <b>meja AKSESORIS</b> (dinding kiri, di samping kaca). Dekati meja lalu tekan E. Aksesoris juga ada di KATALOG → chip AKSESORIS.</div>
 <div class="note">Coba tendang bola di lantai. Cari papan drop di dinding belakang.</div>`;
@@ -675,6 +676,7 @@ document.addEventListener('click', async e => { if (e.target.id === 'mRec') open
 $('#bCatalog').onclick = () => openCatalog('all'); $('#bCart').onclick = openCart; $('#bKasir').onclick = () => { cartCount() ? openCheckout() : cashier(); };
 $('#bMute').onclick = () => setMute(!muted);
 
+bindPay({ onSnap: a => { rPause = a; } });                  // popup Midtrans terbuka: berhenti menggambar 3D (hemat baterai/GPU, popup lebih mulus)
 bindUI({
   toast, beep,
   onChange: open => { paused = open || !started; if (open) { for (const k in keys) keys[k] = false; jx = jy = 0; closeSay(); } },

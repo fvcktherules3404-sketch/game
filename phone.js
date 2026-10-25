@@ -1,6 +1,7 @@
 // phone.js — "HP" di dalam game: Berita & Diskusi diambil dari Firebase JURNAL (fvck-journal) milik web utama.
 // Hanya BACA (read-only), memakai query yang sama persis dengan journal.js di web utama. Membalas/bereaksi tetap lewat web utama.
-import { S, PAY, rp, MAIN_ORIGIN } from './shop.js?v=20261032';
+import { S, rp } from './shop.js?v=20261050';
+import { mulaiBayar, isPaying, waitText } from './pay.js?v=20261050';
 
 const JOURNAL_URL = 'https://jurnal-fucktherules.my.id', MAIN_URL = 'https://fucktherules.my.id/';
 const FS_URL = 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';   // sama dengan versi di firebase.js web utama
@@ -84,7 +85,7 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
   document.body.appendChild(root);
   const app = root.querySelector('#phApp'), timeEl = root.querySelector('.ph-time');
   let view = { n: 'home' }, hist = [], cat = 'all', tick = 0, open = false, webOn = false, wt = 0;
-  const ord = { lacak: {}, resi: {}, pel: {} };          // state tiap aplikasi pesanan: { q, list, sel, tl, loading, err, bukti, sent }
+  const ord = { lacak: {}, resi: {}, pel: {} };          // state tiap aplikasi pesanan: { q, list, sel, tl, loading, err, msg, paying }
 
   const clock = () => { const d = new Date(); timeEl.textContent = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'); };
   const bar = (title, back, refresh) => `<div class="ph-bar">${back ? '<button class="ph-bk" data-back aria-label="Kembali">‹</button>' : '<span class="ph-sp"></span>'}<span class="ph-tt">${esc(title)}</span>${refresh ? '<button class="ph-bk" data-refresh aria-label="Muat ulang">⟳</button>' : '<span class="ph-sp"></span>'}</div>`;
@@ -143,28 +144,26 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
   // ---------- aplikasi pesanan: Lacak / Cek Resi / Pelunasan (fungsi sama dengan web utama) ----------
   const TITLES = { lacak: 'Lacak pesanan', resi: 'Cek resi', pel: 'Pelunasan' };
   const resiBox = (d, resiMode) => d.resi ? `<div class="ph-resi"><span class="ph-cap">Resi anda</span><b>${esc(d.resi)}</b><p>Paket sudah diserahkan ke pihak pengirim. Cek progres pengiriman melalui resi ini.</p><div class="ph-row2"><button class="ph-btn2" data-copy="${esc(d.resi)}">Salin resi</button><button class="ph-btn2 ghost" data-trk="${esc(d.resi)}">Lacak di J&amp;T ›</button></div></div>` : (resiMode ? '<p class="ph-note">Pesanan anda belum dikirim.</p>' : '');
-  function detailLacak(d, tl, resiMode) {
+  const payMsg = st => (st && st.msg ? `<p class="ph-note ${esc(st.msg.t)}">${esc(st.msg.text)}</p>` : '');
+  function detailLacak(d, tl, resiMode, st = {}) {
     const items = d.items && d.items.length ? d.items : [{ nama: d.produk || '', warna: '', size: '' }], art = d.poNames && d.poNames.length ? d.poNames.join(', ') : d.produk || '', pay = d.pay || 'pending';
     const events = tl && tl.length ? tl.map(e => ({ text: e.text, at: ms(e.createdAt) })) : [{ text: 'Pesanan dibuat', at: ms(d.createdAt) }];
     return `<div class="ph-detail"><span class="ph-cap">ID pemesanan</span><p class="ph-kode">${esc(d.kode)}</p>${resiBox(d, resiMode)}<p class="ph-art-n">${esc(art)}</p>
       ${kv('Nama', esc(d.nama || '-'))}${d.email ? kv('Email', esc(d.email)) : ''}${d.hp ? kv('Nomor HP', esc(d.hp)) : ''}
-      ${items.map(i => kv('Produk', esc(i.nama)) + (i.warna || i.size ? kv('Warna / Size', esc(i.warna) + ' / ' + esc(i.size)) : '')).join('')}
+      ${items.map(i => kv('Produk', esc(i.nama)) + ((i.warna || i.size) && i.jenis !== 'aksesoris' && !(i.warna === '-' && i.size === '-') ? kv('Warna / Size', esc(i.warna) + ' / ' + esc(i.size)) : '')).join('')}
       <div class="ph-hr"></div>${d.total ? kv('Total', rp(d.total)) : ''}${pay === 'dp' && d.dpNominal ? kv('DP', rp(d.dpNominal)) + kv('Sisa', rp(d.sisa)) : ''}${kv('Status', esc(PAY_LABEL[pay] || pay))}
+      ${resiMode ? '' : payMsg(st)}${pay === 'pending' && !resiMode ? `<button class="ph-btn2" data-bayar="F" ${st.paying ? 'disabled' : ''}>${st.paying ? 'Memproses…' : 'Lanjut bayar'}</button><p class="ph-muted">Belum dibayar? Selesaikan sebelum batas waktu, kalau tidak pesanan dibatalkan otomatis.</p>` : ''}
       ${pay === 'dp' && !resiMode ? '<p class="ph-note">Lunasi sisa lewat aplikasi <b>Pelunasan</b> dengan ID order ini.</p>' : ''}
       ${resiMode ? '' : `<div class="ph-tl"><b>Timeline</b>${events.map((e, k) => `<div class="ph-step${k === events.length - 1 ? ' last' : ''}"><i></i><div><strong>${esc(e.text)}</strong><time>${e.at ? fmtDT(new Date(e.at)) : ''}</time></div></div>`).join('')}</div>`}</div>`;
   }
   function detailPel(d, st) {
     const ring = `<div class="ph-detail"><span class="ph-cap">Ringkasan pesanan</span><p class="ph-kode">${esc(d.kode)}</p><p class="ph-art-n">${esc(d.produk)}</p><p class="ph-muted" style="margin:0 0 8px">Atas nama ${esc(d.nama)}</p>
       ${kv('Total', rp(d.totalAkhir))}${kv('DP dibayar', '- ' + rp(d.dpNominal))}<div class="ph-hr"></div><div class="ph-kv big"><span>Sisa pelunasan</span><b>${rp(d.sisa)}</b></div></div>`;
-    if (d.status === 'lunas') return ring + '<div class="ph-detail"><span class="ph-cap">Status</span><p class="ph-ok">Pesananmu sudah LUNAS. Terima kasih!</p></div>';
-    const wait = d.status === 'menunggu_verifikasi';
-    return ring + `<div class="ph-detail"><span class="ph-cap">Rekening pembayaran</span>
-      <div class="ph-acc"><span>${esc(PAY.bank)}</span><b>${esc(PAY.rek)}</b><button class="ph-mini" data-copy="${esc(PAY.rek)}">Salin</button></div>
-      <div class="ph-acc"><span>GOPAY</span><b>${esc(PAY.gopay)}</b><button class="ph-mini" data-copy="${esc(PAY.gopay)}">Salin</button></div>
-      <p class="ph-muted">a.n ${esc(PAY.an)}</p><img class="ph-qris" src="${MAIN_ORIGIN}/qris.jpg" alt="QRIS" onerror="this.onerror=null;this.src='assets/qris.jpg'"></div>
-      ${wait ? '<p class="ph-note">Bukti pelunasan sudah terkirim dan menunggu verifikasi admin. Salah upload? Kirim ulang di bawah.</p>' : ''}
-      <div class="ph-detail"><span class="ph-cap">Upload bukti pelunasan (${rp(d.sisa)})</span><label class="ph-upload" for="phBukti"><span id="phBuktiLbl">${st.bukti ? '✓ Foto siap dikirim' : 'Tap untuk pilih foto bukti'}</span></label><input type="file" id="phBukti" accept="image/*" hidden>
-      <button class="ph-btn2" data-kirim ${st.sending ? 'disabled' : ''}>${st.sending ? 'Mengirim…' : 'Kirim bukti pelunasan'}</button><div class="ph-err">${esc(st.err2 || '')}</div></div>`;
+    if (d.status === 'lunas') return ring + `<div class="ph-detail"><span class="ph-cap">Status</span>${payMsg(st)}<p class="ph-ok">Pesananmu sudah LUNAS. Terima kasih!</p></div>`;
+    const wait = d.status === 'menunggu_verifikasi';           // pelunasan lama lewat bukti transfer manual
+    return ring + `${wait ? '<p class="ph-note" style="margin-top:10px">Bukti pelunasan manual sudah terkirim dan menunggu verifikasi admin. Kamu juga bisa membayar langsung lewat tombol di bawah.</p>' : ''}
+      <div class="ph-detail"><span class="ph-cap">Pembayaran</span><p class="ph-muted">Bayar lewat QRIS, e-wallet, virtual account bank, dan metode lain (Midtrans). Metode dipilih di langkah berikutnya, status berubah otomatis setelah bayar.</p>
+      ${payMsg(st)}<button class="ph-btn2" data-bayar="P" ${st.paying ? 'disabled' : ''}>${st.paying ? 'Memproses…' : 'Lanjut bayar · ' + rp(d.sisa)}</button></div>`;
   }
   function renderOrder(kind) {
     const st = ord[kind]; app.className = 'ph-app';
@@ -175,12 +174,12 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
     else {
       const d = st.list.find(x => x.kode === st.sel);
       if (!d) body = '<div class="ph-list">' + st.list.map(x => `<button class="ph-pick" data-pick="${esc(x.kode)}"><b>${esc(x.kode)}</b><span>${esc((x.poNames && x.poNames.length) ? x.poNames.join(', ') : x.produk)}</span>${x.status === 'lunas' ? '<em>Lunas</em>' : ''}</button>`).join('') + '</div>';
-      else body = (st.list.length > 1 ? '<button class="ph-link" data-unsel>‹ Pesanan lain</button>' : '') + (kind === 'pel' ? detailPel(d, st) : detailLacak(d, st.tl, kind === 'resi'));
+      else body = (st.list.length > 1 ? '<button class="ph-link" data-unsel>‹ Pesanan lain</button>' : '') + (kind === 'pel' ? detailPel(d, st) : detailLacak(d, st.tl, kind === 'resi', st));
     }
     app.innerHTML = bar(TITLES[kind], true) + `<div class="ph-form"><div class="ph-search"><input id="phQ" value="${esc(st.q || '')}" placeholder="ID order / email / no. HP" autocomplete="off" autocapitalize="off"><button class="ph-go" data-find="${kind}">Cari</button></div><div class="ph-err">${esc(st.err || '')}</div></div><div class="ph-res">${body}</div>`;
   }
   async function pickOrder(kind, kode) {
-    const st = ord[kind]; st.sel = kode; st.tl = null; st.err2 = ''; render();
+    const st = ord[kind]; st.sel = kode; st.tl = null; st.msg = null; render();
     if (kind !== 'lacak') return;
     const d = st.list.find(x => x.kode === kode); if (!d) return;
     try {                                                    // timeline + update per artikel, persis seperti web utama
@@ -191,15 +190,32 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
     if (view.n === kind && st.sel === kode) render();
   }
   async function findOrder(kind) {
-    const st = ord[kind], q = (app.querySelector('#phQ')?.value || '').trim(); st.q = q; st.err = ''; st.sel = null; st.bukti = null;
+    const st = ord[kind], q = (app.querySelector('#phQ')?.value || '').trim(); st.q = q; st.err = ''; st.sel = null; st.msg = null;
     if (!q) { st.err = 'Isi ID order, email, atau no. HP dulu.'; st.list = null; return render(); }
     st.loading = true; render();
     try {
-      const fn = { lacak: S.fb?.cariLacak, resi: S.fb?.cariResi, pel: S.fb?.cariPelunasan }[kind]; if (!fn) throw new Error('Fitur ini belum tersedia di web utama.');
+      const fn = FIND[kind](); if (!fn) throw new Error('Fitur ini belum tersedia di web utama.');
       const list = await fn(classify(q)); if (list === null || list === undefined) throw new Error('Gagal memuat. Coba lagi sebentar lagi.');
       st.list = list; st.loading = false; if (list.length === 1) { await pickOrder(kind, list[0].kode); return; }
     } catch (e) { st.list = null; st.err = (e && e.message) || 'Gagal memuat. Coba lagi sebentar lagi.'; }
     st.loading = false; if (view.n === kind) render();
+  }
+
+  const FIND = { lacak: () => S.fb?.cariLacak, resi: () => S.fb?.cariResi, pel: () => S.fb?.cariPelunasan };
+  async function refreshOrder(kind) {                        // baca ulang daftar dengan kata kunci yang sama (status baru dari server), tanpa mengubah tampilan
+    const st = ord[kind], fn = FIND[kind](); if (!fn || !st.q) return;
+    try { const list = await fn(classify(st.q)); if (Array.isArray(list)) st.list = list; } catch (e) { console.warn('refresh', e); }
+  }
+  async function payDone(kind, d, tahap, res) {              // hasil popup Midtrans (tahap F = bayar awal dari Lacak, P = pelunasan)
+    const st = ord[kind]; st.paying = false;
+    if (res.type === 'success' || res.type === 'pending') {
+      await refreshOrder(kind);
+      const nd = (st.list || []).find(x => x.kode === d.kode) || d;
+      const ok = tahap === 'P' ? (res.status === 'lunas' || nd.status === 'lunas') : ((res.status && res.status !== 'pending') || (nd.pay && nd.pay !== 'pending'));
+      st.msg = ok ? { t: 'ok', text: tahap === 'P' ? 'PELUNASAN BERHASIL!' : 'PEMBAYARAN BERHASIL!' } : { t: 'wait', text: 'MENUNGGU PEMBAYARAN. Selesaikan sebelum batas waktu.' };
+    } else if (res.type === 'close') st.msg = { t: 'wait', text: waitText(tahap) };
+    else st.msg = { t: 'err', text: res.message || 'Gagal memulai pembayaran.' };
+    if (view.n === kind) render();
   }
 
   // browser mini di dalam HP: halaman web tampil di layar HP (iframe), pemain tidak keluar dari game
@@ -226,12 +242,12 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
     if (t.dataset.unsel !== undefined) { ord[view.n].sel = null; return render(); }
     if (t.dataset.copy) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Tersalin ✓'; } catch { t.textContent = t.dataset.copy; } return; }
     if (t.dataset.trk) { try { await navigator.clipboard.writeText(t.dataset.trk); } catch { } return go({ n: 'web', url: 'https://jet.co.id/track', title: 'J&T' }); }
-    if (t.dataset.kirim !== undefined) {
-      const st = ord.pel, d = (st.list || []).find(x => x.kode === st.sel); if (!d) return;
-      if (!st.bukti) { st.err2 = 'Upload foto bukti dulu.'; return render(); }
-      st.sending = true; st.err2 = ''; render();
-      try { await S.fb.kirimBuktiPelunasan(d.kode, st.bukti); d.status = 'menunggu_verifikasi'; st.bukti = null; } catch (e) { console.warn(e); st.err2 = 'Gagal mengirim. Coba lagi.'; }
-      st.sending = false; if (view.n === 'pel') render(); return;
+    if (t.dataset.bayar) {
+      const kind = view.n, st = ord[kind], d = st && (st.list || []).find(x => x.kode === st.sel); if (!d || isPaying()) return;
+      const tahap = t.dataset.bayar === 'P' ? 'P' : 'F';
+      st.msg = null; st.paying = true; render();
+      mulaiBayar(d.kode, tahap, { onDone: res => payDone(kind, d, tahap, res) });
+      return;
     }
     if (t.dataset.web) return go({ n: 'web', url: t.dataset.web, title: t.dataset.title || '' });
     if (t.dataset.ext) return void window.open(t.dataset.ext, '_blank', 'noopener');
@@ -250,11 +266,6 @@ export function initPhone({ onOpen, onClose, onWeb } = {}) {
     }
   });
   app.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'phQ') { e.preventDefault(); findOrder(view.n); } });
-  app.addEventListener('change', async e => {                                                // upload bukti pelunasan (Cloudinary preset 'bukti', sama dengan web utama)
-    if (e.target.id !== 'phBukti' || !e.target.files[0]) return; const lbl = app.querySelector('#phBuktiLbl'), st = ord.pel; lbl.textContent = 'Mengunggah…'; st.bukti = null;
-    try { st.bukti = await S.fb.uploadGambar(e.target.files[0], 'bukti'); } catch (er) { console.warn(er); }
-    lbl.textContent = st.bukti ? '✓ ' + e.target.files[0].name : 'Gagal upload, coba lagi'; if (!st.bukti) e.target.value = '';
-  });
   const closePhone = () => { if (!open) return; open = false; root.hidden = true; clearInterval(clk); clearTimeout(wt); app.innerHTML = ''; if (webOn) { webOn = false; onWeb && onWeb(false); } onClose && onClose(); };
   let clk = 0;
   const openPhone = () => { if (open) return; open = true; hist = []; view = { n: 'home' }; root.hidden = false; onOpen && onOpen(); render(); clk = setInterval(() => { clock(); if (view.n === 'home') renderHome(); }, 20000); };

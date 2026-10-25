@@ -185,7 +185,6 @@ label.f{font-size:13px;font-weight:600;color:var(--ink);display:block;margin:8px
 .ph-link{padding:4px 6px;font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px;justify-self:start}
 .ph-acc{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}.ph-acc span{width:64px;color:var(--muted);font-weight:600}.ph-acc b{flex:1;letter-spacing:.04em;word-break:break-all}
 .ph-mini{padding:6px 12px;border-radius:999px;background:var(--soft);font-size:12px;font-weight:600}
-.ph-qris{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:12px;margin-top:8px;background:#fff}
 .ph-upload{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0 4px;min-height:84px;border:2px dashed var(--line);border-radius:14px;font-size:13px;color:var(--ink2);text-align:center;padding:10px;cursor:pointer}
 .ph-detail .ph-btn2{margin:10px 0 0;width:100%}.ph-btn2:disabled{opacity:.45}
 
@@ -210,3 +209,25 @@ label.f{font-size:13px;font-weight:600;color:var(--ink);display:block;margin:8px
 .specs-t{font-size:13.5px;line-height:1.7;color:var(--ink2)}
 .specs-t b,.specs-t strong{font-weight:700;color:var(--ink)}
 .specs-t ul,.specs-t ol{margin:6px 0;padding-left:20px}
+
+/* ---------- pembayaran Midtrans (popup Snap, pilihan LUNAS/DP, status struk) ---------- */
+html.snap-open,html.snap-open body{touch-action:auto}          /* longgarkan touch-action:none milik game selama popup Midtrans (iframe) terbuka, supaya bisa di-scroll di HP */
+.pay-loader{position:fixed;inset:0;z-index:9999;background:rgba(17,17,17,.55);display:none;align-items:center;justify-content:center;padding:24px;touch-action:none}
+.pay-loader.show{display:flex}
+.pay-loader-box{background:var(--cream);color:var(--ink);border-radius:24px;box-shadow:0 24px 60px rgba(14,17,22,.35);padding:26px 24px;text-align:center;width:min(320px,100%)}
+.pay-spin{width:34px;height:34px;margin:0 auto 12px;border:3px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .8s linear infinite}
+.pay-loader-t{font-weight:700;font-size:15px}.pay-loader-s{margin-top:6px;font-size:12px;color:var(--muted)}
+.pay-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.pay-opt{flex-direction:column;gap:2px;padding:14px 10px;min-height:68px;border-radius:18px;text-transform:none}
+.pay-opt b{font-size:16px;letter-spacing:.04em}.pay-opt small{font-size:12px;font-weight:500;color:var(--muted)}
+.pay-opt.on{background:var(--ink);color:var(--cream)}.pay-opt.on small{color:rgba(255,253,243,.75)}
+.pay-single{background:#fff;border-radius:16px;padding:14px 16px;border:1.5px solid var(--line);align-items:center}
+.pay-hint{font-size:12px;color:var(--ink2);margin:0 0 8px;line-height:1.5}.pay-hint.err{color:var(--red)}
+.pm{margin:12px 0 0;padding:11px 14px;background:#fff;border-left:5px solid var(--sun);border-radius:14px;font-size:13px;font-weight:600;line-height:1.5}
+.pm.ok{border-left-color:var(--mint)}.pm.err{border-left-color:var(--red);color:var(--red)}
+.rbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.rbtns>*{flex:1 1 140px}.rbtns .full{flex-basis:100%}
+.payfill{display:flex;flex-direction:column;min-height:100%}.payfill>.foot{margin-top:auto}
+.st-lunas{color:#0a7a43}.st-dp{color:#8a5a00}.st-ditolak{color:var(--red)}
+.ph-note.ok{border-left-color:var(--mint)}.ph-note.err{border-left-color:var(--red);color:var(--red)}.ph-detail .ph-note{margin-top:10px}
+/* tombol gelap di HP jangan jadi pucat saat di-hover / hover menempel setelah ketuk di layar sentuh (button:hover global menimpa background-nya) */
+.ph-btn2:hover,.ph-go:hover{background:var(--ink)}.ph-btn2.ghost:hover{background:transparent}
