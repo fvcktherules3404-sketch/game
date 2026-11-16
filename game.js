@@ -420,7 +420,7 @@ function drawScreen() {
 const RW = 7.5, RZN = -5.6, RZP = 5.6;
 let hangers = [], rails = [], solids = [];
 const SP = .8, ROW = 1.9;   // jarak antar hanger & antar baris (kaos diperbesar 1.3x)
-const GROUPS = [{ k: 'pre', x: -7.15, z: -4.5, dx: 0, dz: 1, ry: Math.PI / 2, ix: 1, iz: 0, max: 8 }, { k: 'ready', x: 7.15, z: -4.5, dx: 0, dz: 1, ry: -Math.PI / 2, ix: -1, iz: 0, max: 8 }, { k: 'sold', x: -3.4, z: -3.6, dx: 1, dz: 0, ry: 0, ix: 0, iz: 1, max: 10, rg: 1.4 }];
+const GROUPS = [{ k: 'ready', x: -7.15, z: -4.5, dx: 0, dz: 1, ry: Math.PI / 2, ix: 1, iz: 0, max: 8 }, { k: 'sold', x: 7.15, z: -4.5, dx: 0, dz: 1, ry: -Math.PI / 2, ix: -1, iz: 0, max: 8 }, { k: 'pre', x: -3.4, z: -3.6, dx: 1, dz: 0, ry: 0, ix: 0, iz: 1, max: 10, rg: 1.4 }];
 const STATIC_SOLIDS = [[-1.3, -.65, 1.3, .65], [3.4, 2, 6.6, 3.95], [6.6, 2.2, 7.5, 3.95], [-5.6, 4.45, -3.6, 4.95], [-7.75, 3.35, -6.85, 4.25], [-8, 1.2, -7.38, 2.5]];   // yang terakhir: meja AKSESORIS (dinding kiri, di samping kaca)
 function rebuild() {
   hangers = []; rails = []; solids = STATIC_SOLIDS.slice();
