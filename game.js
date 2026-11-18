@@ -488,7 +488,7 @@ const SPOTS = [
   { id: 'table', x: 0, z: 0, lim: 2.0, t: 'PRESS E TO BROWSE · SEMUA PRODUK', go: () => openCatalog('all') },
   { id: 'kasir', x: 5, z: 4.5, lim: 2.0, t: 'PRESS E TO CHECKOUT', go: cashier },
   { id: 'board', x: 5.0, z: -4.9, lim: 1.8, t: 'PRESS E TO READ · PAPAN DROP', go: board },
-  { id: 'door', x: 0, z: 5.1, lim: 1.5, t: 'PRESS E · KELUAR KE TOKO UTAMA', go: door },
+  { id: 'door', x: 0, z: 5.1, lim: 1.5, t: 'PRESS E · KELUAR KE KOTA', go: door },
   { id: 'aksesoris', x: -6.7, z: 1.85, lim: 1.5, t: 'PRESS E · MEJA AKSESORIS', go: () => openCatalog('acc') },
   { id: 'ball', x: 0, z: 0, lim: 1.3, t: 'PRESS E · TENDANG BOLA', go: kick },
   { id: 'mirror', x: -6, z: -4.7, lim: 1.4, t: 'PRESS E · CERMIN', go: () => say('CERMIN', 'Outfit check. Rules? Dilanggar.', [['PINDAH CERMIN', moveMirror], ['TUTUP']]) }
@@ -503,7 +503,10 @@ async function board() {
   say('PAPAN DROP', 'Memuat info…'); const b = bannerTxt || (bannerTxt = await getBannerText());
   say('PAPAN DROP', b && (b.topText || b.bottomText) ? [b.topText, b.bottomText].filter(Boolean).join(' · ') : 'Belum ada pengumuman. Pantau terus — next drop segera.');
 }
-function door() { say('PINTU', 'Keluar dari game dan kembali ke toko utama?', [['YA, KELUAR', () => { beep('door'); location.href = MAIN_ORIGIN + '/'; }], ['TETAP DI SINI']]); }
+const CITY_URL = 'https://city.fucktherules.my.id/', EMBED = /[?&]embed=1/.test(location.search);
+/* keluar toko = kembali ke kota: tertanam (iframe) -> beri tahu kota untuk menutup lapisan toko; berdiri sendiri -> buka kota */
+function exitToCity() { if (EMBED && window.parent !== window) window.parent.postMessage({ ftr: 'exit' }, '*'); else location.href = CITY_URL; }
+function door() { say('PINTU', 'Keluar dari toko dan kembali ke kota?', [['YA, KELUAR', () => { beep('door'); exitToCity(); }], ['TETAP DI SINI']]); }
 const ball = { x: -3, z: 3.5, vx: 0, vz: 0 };
 function kick() { beep('kick'); const dx = ball.x - pl.x, dz = ball.z - pl.z, l = Math.hypot(dx, dz) || 1; ball.vx = dx / l * 7; ball.vz = dz / l * 7; toast(['OFFSIDE! (VAR bilang gol sah)', 'Rules are made to be broken.', 'GOOOL! Wasit buta lagi.'][Math.random() * 3 | 0]); }
 
@@ -671,7 +674,8 @@ $('#bPhone').onclick = () => { if (started && !panelOpen()) phone.toggle(); };
 $('#bPlay').onclick = play; $('#bHow').onclick = () => showRaw('HOW TO PLAY', howHTML);
 $('#bQuick').onclick = () => openCatalog('all');
 const acctHTML = () => S.user ? `<div class="note">Login sebagai <b>${esc(S.user.email || 'akun toko')}</b>.</div><button id="mOut" style="width:100%">LOGOUT</button>` : '<div class="note">Belum login. Login bersifat opsional dan ada di langkah checkout (kasir).</div>';
-$('#bMenu').onclick = () => showRaw('MENU', `${howHTML}<div class="lbl">AKUN</div>${acctHTML()}<div class="foot">${hasReceipt() ? '<button id="mRec">STRUK TERAKHIR</button>' : ''}<a class="btn" href="${MAIN_ORIGIN}/">KEMBALI KE TOKO UTAMA</a></div>`);
+$('#bMenu').onclick = () => showRaw('MENU', `${howHTML}<div class="lbl">AKUN</div>${acctHTML()}<div class="foot">${hasReceipt() ? '<button id="mRec">STRUK TERAKHIR</button>' : ''}<button class="btn" id="mCity">KEMBALI KE KOTA</button><a class="btn" href="${MAIN_ORIGIN}/" target="_blank" rel="noopener">TOKO UTAMA ↗</a></div>`);
+document.addEventListener('click', e => { if (e.target.id === 'mCity') exitToCity(); });
 document.addEventListener('click', async e => { if (e.target.id === 'mRec') openReceipt(); if (e.target.id === 'mOut') { e.target.disabled = true; const ok = await logout(); toast(ok ? 'Kamu sudah logout' : 'Logout gagal, coba lagi'); $('#bMenu').onclick(); } });
 $('#bCatalog').onclick = () => openCatalog('all'); $('#bCart').onclick = openCart; $('#bKasir').onclick = () => { cartCount() ? openCheckout() : cashier(); };
 $('#bMute').onclick = () => setMute(!muted);
@@ -691,3 +695,10 @@ $('#cartN').textContent = cartCount();
 if (location.search.includes('debug')) window.__g = { pl, cam, ball };
 
 if (!renderer) { $('#bPlay').onclick = () => openCatalog('all'); setTimeout(() => { const l = $('#loadState span'); if (l && !/3D error/.test(l.textContent)) l.textContent = 'WebGL/Three.js tidak tersedia — memakai KATALOG CEPAT.'; }, 300); }
+
+/* ===== mode tertanam di kota (?embed=1): lewati layar intro dan langsung masuk toko ===== */
+if (/[?&]embed=1/.test(location.search)) {
+  document.body.classList.add('embed');
+  const go = () => { try { if (renderer) play(); else openCatalog('all'); } catch (e) { console.warn('embed', e); } };
+  if (document.readyState === 'complete') setTimeout(go, 300); else addEventListener('load', () => setTimeout(go, 300), { once: true });
+}

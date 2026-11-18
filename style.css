@@ -231,3 +231,6 @@ html.snap-open,html.snap-open body{touch-action:auto}          /* longgarkan tou
 .ph-note.ok{border-left-color:var(--mint)}.ph-note.err{border-left-color:var(--red);color:var(--red)}.ph-detail .ph-note{margin-top:10px}
 /* tombol gelap di HP jangan jadi pucat saat di-hover / hover menempel setelah ketuk di layar sentuh (button:hover global menimpa background-nya) */
 .ph-btn2:hover,.ph-go:hover{background:var(--ink)}.ph-btn2.ghost:hover{background:transparent}
+
+/* mode tertanam di kota: tautan keluar disembunyikan */
+body.embed #intro .link{display:none!important}

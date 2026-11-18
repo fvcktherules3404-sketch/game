@@ -111,3 +111,7 @@ Dilakukan (Chromium headless, viewport 390×780 sentuh, **Firebase & GAS di-mock
 - Admin web utama → Aksesoris → centang **BESAR** (field `besar: true` di dokumen `aksesoris`). Dibaca game sebagai `big`.
 - Tidak dicentang (default) = seperti sebelumnya: kecil, berbingkai, berdiri di atas meja (maks. 8).
 - Dicentang = foto dipasang **besar menempel di dinding kiri tepat di atas meja AKSESORIS** (di bawah papan nama), seperti syal/scarf, **tanpa bingkai**. Pakai PNG transparan supaya hanya gambarnya yang tampak. Rasio asli dipertahankan (maks. 0,95 m tinggi), maks. 4 buah berjajar; sold out di urutan akhir dan digelapkan. Foto dimuat Cloudinary lebar 768 px.
+
+## Mode tertanam di kota (?embed=1)
+Dipanggil dari kota FucktheRules (`city.fucktherules.my.id`) lewat iframe. Dengan `?embed=1` game melewati layar intro dan langsung masuk toko. Tanpa parameter, game berjalan seperti biasa.
+- **Keluar toko = kembali ke kota:** pintu (E) dan menu ☰ → *KEMBALI KE KOTA*. Mode tertanam menutup lapisan toko di kota (postMessage `{ftr:'exit'}`); mode berdiri sendiri membuka `city.fucktherules.my.id`. Menu tetap punya tautan *TOKO UTAMA ↗* (tab baru).
