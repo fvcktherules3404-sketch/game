@@ -3,7 +3,7 @@
 import { mulaiBayar, isPaying, payApi, tampilLoadingBayar, sembunyiLoadingBayar, statusNorm, waitText } from './pay.js?v=20261050';
 export const MAIN_ORIGIN = 'https://fucktherules.my.id';
 const FB_URL = MAIN_ORIGIN + '/firebase.js?v=20261045';          // modul yang sama dengan website utama (satu sumber kebenaran; versi disamakan dgn script.js utama)
-const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbz3vRP4hkKjzv7b_lc3Qq6N5bhXZk44WJZd19fTNJNblwiGBGDH8uw0LKrFckqosBxtzw/exec';
+const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbypW_Y9MnUwXrC0kePXDn-IkSmYW23a5--sMcjzLBahNcXsq9XXsmP3MSPYYnKBd3x56g/exec';
 const GAS_BITESHIP = 'https://script.google.com/macros/s/AKfycbyDTEPvP5yndja35U02nkC4lsYRy3vQqVe2s4NTx-MxBE8MCSB9co2ztG5ZDMtJzuAO/exec';
 const WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/v2';
 const SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
