@@ -59,7 +59,7 @@
               var b = { writes: [{ update: { name: base + "/aktivitas/" + d + "_" + dev, fields: { dev: { stringValue: dev }, day: { stringValue: d }, ua: { stringValue: ua } } }, updateMask: { fieldPaths: ["dev", "day", "ua"] },
                 updateTransforms: [{ fieldPath: "ev", appendMissingElements: { values: vals } }] }] };
               fetch(API, { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })
-                .then(function (r) { if (!r.ok && !tries) { queue = chunk.concat(queue); timer = setTimeout(function () { flush(1); }, 8000); } })
+                .then(function (r) { if (!r.ok) { try { r.text().then(function (x) { console.warn("ftr-track: aktivitas ditolak", r.status, String(x).slice(0, 240)); }); } catch (e) { } } if (!r.ok && !tries) { queue = chunk.concat(queue); timer = setTimeout(function () { flush(1); }, 8000); } })
                 .catch(function () { if (!tries) { queue = chunk.concat(queue); timer = setTimeout(function () { flush(1); }, 8000); } });
             })(list.slice(i, i + 10));
           }
