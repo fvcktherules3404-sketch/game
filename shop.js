@@ -7,6 +7,7 @@ const GAS_ORDER_BACKUP = 'https://script.google.com/macros/s/AKfycbypW_Y9MnUwXrC
 const GAS_BITESHIP = 'https://script.google.com/macros/s/AKfycbyDTEPvP5yndja35U02nkC4lsYRy3vQqVe2s4NTx-MxBE8MCSB9co2ztG5ZDMtJzuAO/exec';
 const WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/v2';
 const SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+const T = (k, d, o) => { try { window.ftrEvent && window.ftrEvent(k, d, o); } catch (e) {} };   // pelacak aktivitas (ftr-track.js), aman kalau belum termuat
 const AKS = '-';                       // varian tunggal aksesoris (tanpa warna/ukuran); sama dengan stokIdAks() di firebase.js
 const CART_KEY = 'fvckgame.cart.v1', LAST_KEY = 'fvckgame.lastReceipt.v1';
 
@@ -137,6 +138,7 @@ export function addToCart(pid, color, size, qty, addons = []) {
 const FILTERS = { all: ['SEMUA', () => true], pre: ['PRE ORDER', p => p.badge === 'pre'], ready: ['READY STOCK', p => p.badge === 'ready'], sold: ['ARSIP', p => p.badge === 'sold'], acc: ['AKSESORIS', p => !!p.acc] };
 export function openCatalog(f = 'all') {
   if (!FILTERS[f]) f = 'all';
+  T('katalog', FILTERS[f][0]);
   const list = S.products.concat(S.acc).filter(FILTERS[f][1]);
   const tabs = Object.entries(FILTERS).map(([k, v]) => `<button class="chip ${k === f ? 'on' : ''}" data-act="cat" data-v="${k}">${v[0]}</button>`).join('');
   const grid = list.map(p => `<button class="card ${p.badge === 'sold' ? 'sold' : ''}" data-act="prod" data-v="${esc(p.id)}">
@@ -156,6 +158,7 @@ export function openProduct(pid, back = () => openCatalog()) {
   const p = byId(pid); if (!p) return openCatalog();
   const lanjut = view === 'product' && sel.pid === pid;           // render ulang (pilih opsi / stok berubah): jangan lompat ke atas
   const keep = lanjut ? P.body.scrollTop : 0;
+  if (!lanjut) T('produk', p.name);
   if (sel.pid !== pid) sel = { pid, color: p.colors.length === 1 ? p.colors[0] : '', size: p.acc ? AKS : '', qty: 1, addons: [] };
   if (sel.color && !warnaOk(p, sel.color)) sel.color = '';
   if (sel.size && !sizeOk(p, sel.color, sel.size)) sel.size = '';
@@ -183,6 +186,7 @@ function openSizeGuide() {
 
 /* ---------- Tas ---------- */
 export function openCart() {
+  T('keranjang');
   const L = lines();
   const body = !L.length ? '<div class="msg">Tas masih kosong. Ambil kaos dari rak atau aksesoris dari meja.</div>' : L.map((l, i) => `<div class="line">
     <img src="${esc(l.p?.thumb || '')}" alt=""><div class="m"><b>${esc(l.p?.name || 'Produk dihapus')}</b><small>${l.p?.acc ? 'Aksesoris' : esc(l.color) + ' | ' + esc(l.size)}${l.p ? esc(addonText(l.p, l.addons) ? ' + ' + addonText(l.p, l.addons) : '') : ''}</small>
@@ -211,6 +215,7 @@ async function wil(path) { if (wc[path]) return wc[path]; let r; try { r = await
 
 export function openCheckout() {
   if (!lines().length) return openCart();
+  T('checkout');
   const f = co.f; if (S.user && !f.email) f.email = S.user.email || '';
   show('CHECKOUT — KASIR', `<div class="note">Data pengiriman sama seperti di toko utama. Setelah ini kamu bayar lewat <b>Midtrans</b> (QRIS, e-wallet, virtual account bank, dll). Status pesanan berubah otomatis, tanpa upload bukti.</div>
     <div id="authBox">${S.user ? `<div class="note">Login sebagai ${esc(S.user.email)}. Pesanan masuk ke riwayat akunmu.</div><button data-act="logout" style="width:100%">LOGOUT</button>` : `<button data-act="loginToggle" style="width:100%">LOGIN (OPSIONAL)</button><div id="loginForm" hidden><input id="lgE" type="email" placeholder="Email akun toko" autocomplete="email"><input id="lgP" type="password" placeholder="Password" autocomplete="current-password"><button data-act="login" class="pri" style="width:100%">MASUK</button><div class="err-t" id="lgErr"></div></div>`}</div>
@@ -326,6 +331,7 @@ function validasiPay() {
 let payTok = 0;
 async function openPay() {
   const tok = ++payTok;
+  T('bayar_buka');
   show('KASIR — BAYAR', '<div class="msg">Memuat pengaturan pembayaran…</div>', () => openCheckout()); view = 'pay';
   payS = null;
   try { if (S.fb.getPaymentSettings && S.fb.hitungMinDP) payS = await S.fb.getPaymentSettings(); } catch (e) { console.warn('pengaturan bayar', e); }
@@ -396,7 +402,7 @@ async function submit() {
     fetch(GAS_ORDER_BACKUP, { method: 'POST', mode: 'no-cors', cache: 'no-cache', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(orderData) }).catch(() => {});
     rec = { kode: orderData.kodePelunasan, via: 'midtrans', mode: by.mode, payAmount: by.nominal, status: 'pending', total: c.total, sub: c.sub, ongkir: c.ongkir, d: c.d, items: flat, nama: orderData.nama, at: new Date().toISOString() };
   } catch (e) { console.error(e); return lepas('Gagal menyimpan pesanan. Periksa koneksi lalu coba lagi (pesananmu belum terkirim).'); }
-  putRec(rec); S.cart = []; saveCart(); co = coBaru(); resetPay();
+  T('pesan'); putRec(rec); S.cart = []; saveCart(); co = coBaru(); resetPay();
   ui.beep('ding'); openReceipt(rec, { auto: true });      // struk jadi "papan status" di belakang popup Midtrans
   bayar(rec, 'F');
 }
@@ -450,7 +456,7 @@ async function hasilBayar(r, res) {
   if (res.status) r.status = res.status;
   if (res.type === 'success' || res.type === 'pending') {
     if (statusNorm(r.status) === 'pending') await refreshRec(r);      // sync gagal / webhook belum masuk: baca dokumen lacak
-    const [t, m] = statusMsg(r); setMsg(t, m);
+    const [t, m] = statusMsg(r); setMsg(t, m); T(t === 'ok' ? 'bayar_ok' : 'bayar_tunggu');
     if (t === 'ok') { ui.beep('ding'); ui.toast(statusNorm(r.status) === 'lunas' ? '✓ Pembayaran berhasil' : '✓ DP berhasil dibayar'); } else ui.toast('Menunggu pembayaran…');
   } else if (res.type === 'close') setMsg('wait', waitText('F'));
   else setMsg('err', res.message || 'Gagal memulai pembayaran.');
@@ -461,7 +467,7 @@ async function cekStatus() {
   setMsg('wait', 'Memeriksa status pembayaran…');
   try { const s = await payApi('/sync', { kode: r.kode, tahap: 'F' }); if (s && s.status) r.status = statusNorm(s.status); } catch (e) { console.warn('sync', e); }
   await refreshRec(r);
-  const [t, m] = statusMsg(r, true); setMsg(t, m);
+  const [t, m] = statusMsg(r, true); setMsg(t, m); if (t === 'ok') T('bayar_ok', '', { once: true });
 }
 export function openReceipt(r = readRec(), opt = {}) {
   if (!r) { ui.toast('Belum ada struk.'); return; }
@@ -486,14 +492,14 @@ P.body.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return; const a = t.dataset.act, v = t.dataset.v, i = Number(t.dataset.i);
   if (a === 'cat') openCatalog(v);
   else if (a === 'prod') openProduct(v);
-  else if (a === 'color') { sel.color = v; openProduct(sel.pid, P.backFn); }
+  else if (a === 'color') { sel.color = v; T('warna', v); openProduct(sel.pid, P.backFn); }
   else if (a === 'addon') { const ad = byId(sel.pid)?.addons[Number(v)]; if (ad) { const k = sel.addons.indexOf(ad.nama); if (k >= 0) sel.addons.splice(k, 1); else sel.addons.push(ad.nama); openProduct(sel.pid, P.backFn); } }
   else if (a === 'guide') openSizeGuide();
-  else if (a === 'size') { sel.size = v; openProduct(sel.pid, P.backFn); }
+  else if (a === 'size') { sel.size = v; T('ukuran', v); openProduct(sel.pid, P.backFn); }
   else if (a === 'qty') { sel.qty = Math.max(1, Math.min(20, sel.qty + Number(v))); $('#qv').textContent = sel.qty; }
   else if (a === 'add') { if (!sel.color) return ($('#perr').textContent = 'Pilih warna dulu.'); if (!sel.size) return ($('#perr').textContent = 'Pilih ukuran dulu.');
     const r = addToCart(sel.pid, sel.color, sel.size, sel.qty, sel.addons);
-    if (r === true) { ui.beep('add'); ui.toast(`✓ Masuk tas: ${byId(sel.pid).name}${varTxt(sel.color, sel.size)} ×${sel.qty}`); sel.qty = 1; sel.addons = []; openProduct(sel.pid, P.backFn); }
+    if (r === true) { T('tas', byId(sel.pid)?.name); ui.beep('add'); ui.toast(`✓ Masuk tas: ${byId(sel.pid).name}${varTxt(sel.color, sel.size)} ×${sel.qty}`); sel.qty = 1; sel.addons = []; openProduct(sel.pid, P.backFn); }
     else $('#perr').textContent = r === 'stok' ? `Stok tidak cukup (tersedia ${stokQty(byId(sel.pid), sel.color, sel.size)}, termasuk yang sudah di tas).` : 'Varian tidak tersedia.'; }
   else if (a === 'cart') openCart();
   else if (a === 'cq') { const it = S.cart[i]; if (it) { it.qty = Math.max(1, Math.min(20, it.qty + Number(v))); saveCart(); openCart(); } }
